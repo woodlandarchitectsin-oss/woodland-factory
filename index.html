@@ -117,7 +117,7 @@ const CTYPES=["Dealer","Contractor","Builder","Carpenter","Boat builder","Direct
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["reports","Daily summary"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -131,7 +131,7 @@ const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
+const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
@@ -157,7 +157,7 @@ async function loadData(){
     const pm={};prices.forEach(p=>{pm[p.id]=p;});
     d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
     d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
-    d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
+    d.factory_reports=(await fetchAll("factory_reports")).map(stampBy);d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
     if(set[0])d.settings=set[0];
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
@@ -224,6 +224,7 @@ function summary(t,r){
   if(t==="customers")return r.name;
   if(t==="collections")return r.customer+" · "+inr(r.amount);
   if(t==="payments")return r.payee+" · "+inr(r.amount);
+  if(t==="factory_reports")return r.factory+" · "+fmtD(r.date)+" daily summary";
   if(t==="vendors")return r.name;
   if(t==="payables")return r.vendor+" · "+inr(r.amount);
   if(t==="documents")return r.name+" · "+r.area+" · "+r.status;
@@ -319,6 +320,13 @@ money(){
   panel("Collections",tbl(["Date","Customer","Mode","Amount#","Entered by",""],c.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="collections" data-id="${r.id}">Edit</button></td></tr>`)))+
   panel("Payments made",tbl(["Date","Paid to","Type","Amount#","Entered by",""],p.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.payee)}</td><td>${esc(r.category)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payments" data-id="${r.id}">Edit</button></td></tr>`)))+`</div>`;
 },
+reports(){
+  const rows=DB.factory_reports.filter(inF).sort((a,b)=>String(b.date).localeCompare(a.date)||String(a.factory).localeCompare(b.factory)),L=rows[0];
+  const v=n=>n==null?"":num(n);
+  return head("Daily summary","Each factory's daily report and running totals. This doesn't change sheet stock.",factorySwitch()+`<button class="btn pri" data-a="add" data-t="factory_reports">Add daily summary</button>`)+
+  (L?`<div class="sub" style="margin-bottom:8px">Latest: ${esc(L.factory)}, ${fmtD(L.date)}</div><div class="tiles">${tile(v(L.production_sheets),"Sheets produced",v(L.production_sqft)+" sq ft")}${tile(v(L.repair_sheets),"Sheets repaired")}${tile(v(L.dispatch_sheets),"Sheets dispatched",v(L.dispatch_sqft)+" sq ft")}${tile(v(L.month_production_sqft),"Month production","sq ft")}${tile(v(L.month_dispatch_sqft),"Month dispatch","sq ft")}</div>`:"")+
+  panel("Reports",tbl(["Date","Factory","Production#","Sq ft#","Repair#","Dispatch#","Sq ft#","Peeling cft#","Peeling sq ft#","Multi frames#","Multi sq ft#","Core dry sq ft#","Week production#","Week dispatch#","Month production#","Month dispatch#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td class="n">${v(r.production_sheets)}</td><td class="n">${v(r.production_sqft)}</td><td class="n">${v(r.repair_sheets)}</td><td class="n">${v(r.dispatch_sheets)}</td><td class="n">${v(r.dispatch_sqft)}</td><td class="n">${v(r.peeling_cft)}</td><td class="n">${v(r.peeling_sqft)}</td><td class="n">${v(r.multi_frames)}</td><td class="n">${v(r.multi_sqft)}</td><td class="n">${v(r.core_dry_sqft)}</td><td class="n">${v(r.week_production_sqft)}</td><td class="n">${v(r.week_dispatch_sqft)}</td><td class="n">${v(r.month_production_sqft)}</td><td class="n">${v(r.month_dispatch_sqft)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="factory_reports" data-id="${r.id}">Edit</button></td></tr>`),"No daily summaries yet."));
+},
 vendors(){
   const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
   return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
@@ -370,6 +378,7 @@ function weeklyHTML(){
 /* ---- forms ---- */
 const custNames=()=>Api.rows("customers").map(r=>r.name);
 const FORMS={
+  factory_reports:{one:"daily summary",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"production_sheets",l:"Production (sheets)",t:"number"},{k:"production_sqft",l:"Production (sq ft)",t:"number"},{k:"repair_sheets",l:"Repair (sheets)",t:"number"},{k:"dispatch_sheets",l:"Dispatch (sheets)",t:"number"},{k:"dispatch_sqft",l:"Dispatch (sq ft)",t:"number"},{k:"peeling_cft",l:"Peeling (cft)",t:"number"},{k:"peeling_sqft",l:"Peeling (sq ft)",t:"number"},{k:"multi_frames",l:"Multi (frames)",t:"number"},{k:"multi_sqft",l:"Multi (sq ft)",t:"number"},{k:"core_dry_sqft",l:"Core dry (sq ft)",t:"number"},{k:"week_production_sqft",l:"Week production (sq ft)",t:"number"},{k:"week_dispatch_sqft",l:"Week dispatch (sq ft)",t:"number"},{k:"month_production_sqft",l:"Month production (sq ft)",t:"number"},{k:"month_dispatch_sqft",l:"Month dispatch (sq ft)",t:"number"}]},
   vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
   payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
   production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good sheets",t:"number",req:1},{k:"second",l:"Second-grade sheets",t:"number"},{k:"rejected",l:"Rejected sheets",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
