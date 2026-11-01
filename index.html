@@ -105,6 +105,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 <div id="layer"></div>
 <script src="vendor/supabase.js"></script>
 <script src="config.js"></script>
+<script src="docs.js"></script>
 <script>
 const FACTORIES=["Woodland","KTR"];
 const GRADES=["Commercial MR","BWR","BWP","Marine","Film-face Shuttering","Architect Gurjan","Architect Silver Oak","Architect Tropical"];
@@ -116,7 +117,7 @@ const CTYPES=["Dealer","Contractor","Builder","Carpenter","Boat builder","Direct
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["money","Collections & payments"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -130,7 +131,7 @@ const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
+const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
@@ -156,6 +157,7 @@ async function loadData(){
     const pm={};prices.forEach(p=>{pm[p.id]=p;});
     d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
     d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
+    d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
     if(set[0])d.settings=set[0];
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
@@ -222,6 +224,9 @@ function summary(t,r){
   if(t==="customers")return r.name;
   if(t==="collections")return r.customer+" · "+inr(r.amount);
   if(t==="payments")return r.payee+" · "+inr(r.amount);
+  if(t==="vendors")return r.name;
+  if(t==="payables")return r.vendor+" · "+inr(r.amount);
+  if(t==="documents")return r.name+" · "+r.area+" · "+r.status;
   if(t==="counts")return [r.factory,r.item,num(r.qty)].join(" · ");
   return "";
 }
@@ -314,6 +319,15 @@ money(){
   panel("Collections",tbl(["Date","Customer","Mode","Amount#","Entered by",""],c.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="collections" data-id="${r.id}">Edit</button></td></tr>`)))+
   panel("Payments made",tbl(["Date","Paid to","Type","Amount#","Entered by",""],p.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.payee)}</td><td>${esc(r.category)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payments" data-id="${r.id}">Edit</button></td></tr>`)))+`</div>`;
 },
+vendors(){
+  const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
+  return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
+},
+payables(){
+  const T=today(),rows=[...DB.payables].sort((x,y)=>(x.status==="Paid")-(y.status==="Paid")||String(x.due||"9").localeCompare(y.due||"9")),open=rows.filter(r=>r.status!=="Paid"),late=open.filter(r=>r.due&&r.due<T),sum=a=>a.reduce((t,r)=>t+Number(r.amount),0);
+  return head("Pending payments","What Woodland owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td><span class="pill ${r.status==="Paid"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
+},
+documents(){return head("Upload documents","Send a photo, PDF or sheet for Claude to read")+'<div id="docsHost"></div>';},
 check(){
   const from=addDays(today(),-6),rows=FACTORIES.filter(f=>S.factory==="All"||f===S.factory).map(f=>{
     const p=DB.production.filter(r=>r.factory===f&&r.date>=from);const au=autoUse(p);
@@ -356,6 +370,8 @@ function weeklyHTML(){
 /* ---- forms ---- */
 const custNames=()=>Api.rows("customers").map(r=>r.name);
 const FORMS={
+  vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
+  payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
   production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good sheets",t:"number",req:1},{k:"second",l:"Second-grade sheets",t:"number"},{k:"rejected",l:"Rejected sheets",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
   dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Sheets",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"supplier",l:"Supplier"},{k:"qty",l:"Sq ft (kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"}]},
@@ -407,6 +423,7 @@ function render(){
   if(!nav.some(n=>n[0]===S.view))S.view=nav[0][0];
   const main=V[S.view]();
   R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>WOODLAND PLY</b><span>Part of Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"woodland",areas:["Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-a]");if(!el)return;const a=el.dataset.a;

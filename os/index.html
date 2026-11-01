@@ -124,10 +124,11 @@ td.w{min-width:170px}td.act{white-space:nowrap;text-align:right}
 
 <script src="../vendor/supabase.js"></script>
 <script src="../config.js"></script>
+<script src="../docs.js"></script>
 <script>
 /* Saleem OS sign-in and data. Uses the same database and sign-in as the Woodland app, so one login opens both. */
 (function(){
-  const CFG=window.WOODLAND_CONFIG,sb=supabase.createClient(CFG.url,CFG.anonKey);
+  const CFG=window.WOODLAND_CONFIG,sb=supabase.createClient(CFG.url,CFG.anonKey);window.osSb=sb;
   let me=null,prof=null,ready;
   const signedIn=new Promise(r=>{ready=r;});
   const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -223,13 +224,16 @@ const KINDS={
     {k:"date",label:"Order date",type:"date"},{k:"party",label:"Party",list:"party",req:1},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet",fullOnly:1},
     {k:"marketer",label:"Marketer",list:"marketer",fullOnly:1},{k:"qty",label:"Ordered",type:"number"},{k:"sent",label:"Dispatched",type:"number"},{k:"balance",label:"Balance",calc:1},{k:"due",label:"Due",type:"date"},
     {k:"status",label:"Status",type:"select",options:["Pending","In production","Part dispatched","Delivered","Cancelled"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  vendor:{tab:"Vendors",one:"vendor",sort:"name",dir:1,fields:[{k:"name",label:"Vendor name",req:1,wide:1},{k:"type",label:"Supplies"},{k:"region",label:"Region"},{k:"person",label:"Contact person"},{k:"phone",label:"Phone"},{k:"gst",label:"Tax number"},{k:"terms",label:"Payment terms"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  payable:{tab:"Pending payments",one:"bill",sort:"due",dir:1,fields:[{k:"vendor",label:"Vendor",req:1,wide:1},{k:"bill",label:"Bill no."},{k:"date",label:"Bill date",type:"date"},{k:"due",label:"Due date",type:"date"},{k:"amount",label:"Amount",type:"number",req:1},{k:"status",label:"Status",type:"select",options:["Pending","Paid"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  documents:{tab:"Upload documents",one:"",fields:[]},
   activity:{tab:"History",one:"",fields:[]},
   biz:{tab:"",one:"business",fields:[{k:"name",label:"Business name",req:1,full:1},{k:"note",label:"What it does",full:1},{k:"screens",label:"Screens",type:"select",options:["Standard","Full"],full:1}]},
   remark:{tab:"Remarks & discussions",one:"remark",sort:"date",dir:-1,fields:[
     {k:"date",label:"Date",type:"date"},{k:"about",label:"About"},{k:"text",label:"Remark",type:"textarea",req:1,wide:1,full:1}]}
 };
-const FULL_TABS=["followup","party","region","product","maker","machine","production","pallet","inout","order","remark","activity"];
-const BASIC_TABS=["followup","party","order","remark","activity"];
+const FULL_TABS=["followup","party","region","product","maker","machine","production","pallet","inout","order","remark","vendor","payable","documents","activity"];
+const BASIC_TABS=["followup","party","order","remark","vendor","payable","documents","activity"];
 const UNIQUE={party:"name",maker:"name",pallet:"size",product:"name"};
 
 const S={records:[],loaded:false,biz:"",tab:"overview",q:"",note:"",readOnly:false,modal:null,filter:"",from:"",to:"",activity:[],names:{}};
@@ -278,6 +282,7 @@ function attention(only){
   const t=today(),out=[];
   BUSINESSES.filter(b=>!only||b.id===only).forEach(b=>{
     openFU(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"followup",title:r.about,sub:"Follow-up"+(r.party?" · "+r.party:""),tag:d?d+"d late":"Today"});});
+    rec(b.id,"payable").forEach(r=>{if(r.status==="Paid"||!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"payable",title:r.vendor,sub:"Bill to pay"+(r.amount?" · "+num(r.amount):""),tag:d?d+"d late":"Today"});});
     openOrders(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due),bal=balance(r);out.push({sev:d>0?2:1,d,b,kind:"order",title:r.party,sub:"Order"+(r.product?" · "+r.product:"")+(bal!=null?" · "+num(bal)+" left":""),tag:d?d+"d late":"Today"});});
   });
   return out.sort((x,y)=>y.sev-x.sev||y.d-x.d);
@@ -362,12 +367,14 @@ function render(){
   <div class="tabs" role="tablist"><button role="tab" aria-selected="${S.tab==="overview"}" data-a="tab" data-v="overview" class="${S.tab==="overview"?"on":""}">Overview</button>${tabs.map(k=>`<button role="tab" aria-selected="${S.tab===k}" data-a="tab" data-v="${k}" class="${S.tab===k?"on":""}">${esc(KINDS[k].tab)}</button>`).join("")}</div>`;
   if(S.tab==="overview")h+=renderOverview(b);
   else if(S.tab==="activity")h+=renderActivity(b.id);
+  else if(S.tab==="documents")h+='<div id="docsHost"></div>';
   else{
     const def=KINDS[S.tab];
     h+=summary(S.tab,b.id)+`${chips()}<div class="bar"><input type="search" id="q" placeholder="Search ${esc(def.tab.toLowerCase())}" aria-label="Search" value="${esc(S.q)}">${S.readOnly?"":`<button class="btn pri" data-a="add">Add ${esc(def.one)}</button>`}${downloads?'<button class="btn" data-a="export">Export to Excel</button>':""}</div><section class="panel" id="tbl">${tableHTML(S.tab,b.id)}</section>`;
   }
   const hadFocus=document.activeElement&&document.activeElement.id==="q",pos=hadFocus?document.activeElement.selectionStart:0;
   m.innerHTML=h;
+  if(S.tab==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb:window.osSb,biz:b.id,areas:["Vendors","Pending payments","Parties","Pending orders","Follow-ups",...(b.full?["Machine models & pallets","Production","Inward / outward"]:[]),"Remarks","Other"]});
   const on=m.querySelector(".tabs .on");if(on&&on.parentNode.scrollWidth>on.parentNode.clientWidth)on.parentNode.scrollLeft=on.offsetLeft-on.parentNode.offsetLeft-16;
   if(hadFocus&&$("q")){$("q").focus();$("q").setSelectionRange(pos,pos);}
 }
