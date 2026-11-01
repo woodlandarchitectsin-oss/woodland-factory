@@ -258,7 +258,7 @@ function receivables(){
   });
 }
 const unpriced=()=>DB.dispatch.filter(r=>dispatchAmount(r)==null);
-function lastWeek(){let d=addDays(today(),-1);while(new Date(d+"T00:00:00").getDay()!==5)d=addDays(d,-1);return {from:addDays(d,-4),to:d};}
+function lastWeek(){let d=addDays(today(),-1);while(new Date(d+"T00:00:00").getDay()!==6)d=addDays(d,-1);return {from:addDays(d,-5),to:d};}
 
 /* ---- pieces ---- */
 const tile=(n,l,s,hot)=>`<div class="tile ${hot?"hot":""}"><b>${esc(n)}</b><span>${esc(l)}</span>${s?`<small>${esc(s)}</small>`:""}</div>`;
@@ -342,7 +342,7 @@ function weeklyHTML(){
   const dis=DB.dispatch.filter(inW),billed=dis.reduce((a,r)=>a+(dispatchAmount(r)||0),0),col=DB.collections.filter(inW).reduce((a,r)=>a+Number(r.amount),0),paid=DB.payments.filter(inW).reduce((a,r)=>a+Number(r.amount),0);
   const rec=receivables(),out=rec.reduce((a,x)=>a+x.balance,0),od=rec.reduce((a,x)=>a+x.overdue,0);
   return `<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched")}${tile(inr(billed),"Sales billed")}${tile(inr(col),"Collections")}${tile(inr(paid),"Payments made")}${tile(inr(col-paid),"Net cash")}${tile(inr(out),"Total outstanding")}${tile(inr(od),"Overdue",null,od>0)}</div>`+
-  panel("Production, Monday to Friday",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td></tr>`),"No production in those days."));
+  panel("Production, Monday to Saturday",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td></tr>`),"No production in those days."));
 }
 
 /* ---- forms ---- */
