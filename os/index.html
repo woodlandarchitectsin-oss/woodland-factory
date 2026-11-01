@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#15262e">
+<title>Saleem OS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: dark register rail of companies, one working sheet per company, tabs for each record type */
+:root{
+  --bg:#edf0f0;--surface:#fff;--surface2:#f4f6f6;--line:#d5dbdc;--fg:#16242b;--muted:#566870;
+  --rail:#15262e;--rail-fg:#d9e3e6;--rail-muted:#8ea3ab;--rail-on:#24404c;
+  --accent:#0f5c6e;--accent-ink:#fff;--veneer:#d39a45;
+  --crit:#b3261e;--crit-soft:#f9e4e2;--warn:#8a5a00;--warn-soft:#f7ecd6;--ok:#22704a;--ok-soft:#dff1e7;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Barlow","Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f181c;--surface:#172329;--surface2:#1e2c33;--line:#2e3f47;--fg:#e4ebed;--muted:#9fb0b7;
+  --rail:#0b1317;--rail-on:#1f343e;--accent:#6cc0d3;--accent-ink:#06242c;
+  --crit:#f18b82;--crit-soft:#3b1f1d;--warn:#e5b65e;--warn-soft:#352a13;--ok:#7dd1a2;--ok-soft:#16301f;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f181c;--surface:#172329;--surface2:#1e2c33;--line:#2e3f47;--fg:#e4ebed;--muted:#9fb0b7;
+  --rail:#0b1317;--rail-on:#1f343e;--accent:#6cc0d3;--accent-ink:#06242c;
+  --crit:#f18b82;--crit-soft:#3b1f1d;--warn:#e5b65e;--warn-soft:#352a13;--ok:#7dd1a2;--ok-soft:#16301f;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--body)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.rail{background:var(--rail);color:var(--rail-fg);padding-block:20px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{padding:0 20px 16px;border-bottom:1px solid var(--rail-on);margin-bottom:10px}
+.brand b{display:block;font:700 23px/1.1 var(--display);letter-spacing:.02em}
+.brand span{font-size:12px;color:var(--rail-muted)}
+.biz{display:flex;flex-direction:column;gap:2px;padding:0 10px}
+.biz button{all:unset;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 8px;padding:9px 10px;border-radius:5px}
+.biz button:hover{background:var(--rail-on)}
+.biz button:focus-visible{outline:2px solid var(--veneer)}
+.biz button.on{background:var(--rail-on);box-shadow:inset 3px 0 0 var(--veneer)}
+.biz b{font-weight:600}.biz small{grid-column:1;color:var(--rail-muted);font-size:12px}
+.biz i{grid-row:1/3;grid-column:2;font-style:normal;font-size:12px;font-weight:600;background:var(--crit);color:#fff;border-radius:9px;padding:0 7px}
+.main{padding-block:24px 48px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));min-width:0;max-width:1240px}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
+h1{font-size:34px;font-weight:700;line-height:1.05}
+.sub{color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px}
+td.d{white-space:nowrap}
+.tabs button{all:unset;cursor:pointer;white-space:nowrap;padding:8px 12px;color:var(--muted);font-weight:500;border-bottom:3px solid transparent}
+.tabs button:hover{color:var(--fg)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tabs button.on{color:var(--fg);font-weight:600;border-bottom-color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:18px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px 14px}
+.tile b{display:block;font:600 30px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--muted)}
+.tile.hot b{color:var(--crit)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:5px;min-width:0;margin-bottom:14px}
+.grid2 .panel{margin-bottom:0}
+.panel h2{font-size:18px;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line)}
+.li{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:9px 14px;border-bottom:1px solid var(--line)}
+.li:last-child{border-bottom:0}
+.li div{min-width:0;overflow-wrap:anywhere}.li small{display:block;color:var(--muted)}
+.none{padding:18px 14px;color:var(--muted)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.bar input{flex:1 1 200px;min-width:0;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:5px}
+.btn{cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:7px 12px;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.dang{color:var(--crit)}
+.btn.sm{padding:3px 9px;font-size:13px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;background:var(--surface2);white-space:nowrap}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.w{min-width:170px}td.act{white-space:nowrap;text-align:right}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--surface2);white-space:nowrap}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.clk{all:unset;cursor:pointer;color:var(--accent);font-weight:600}.clk:hover{text-decoration:underline}
+.clk:focus-visible{outline:2px solid var(--accent)}
+.msg{padding:9px 14px;border-radius:5px;margin-bottom:14px;background:var(--warn-soft);color:var(--warn)}
+.wrap{position:fixed;inset:0;z-index:20;background:rgba(5,15,20,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);border-radius:6px;width:100%;max-width:560px;padding:18px}
+.modal h2{font-size:24px;font-weight:600;margin-bottom:12px}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.form label{display:flex;flex-direction:column;gap:3px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
+.form .full{grid-column:1/-1}
+.form input,.form select,.form textarea{width:100%;padding:8px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.actions .sp{flex:1}
+.err{color:var(--crit);margin-top:10px}
+.err:empty{display:none}
+.chipon{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.dt{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.dt input{flex:none;width:auto;padding:6px 8px;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:5px}
+.modal.wide{max-width:640px}.modal .panel{margin-bottom:12px}
+@media (max-width:760px){
+  .app{display:block}
+  .rail{position:static;height:auto;padding-block:12px 8px;overflow:visible}
+  .brand{padding:0 max(16px,env(safe-area-inset-left,0px)) 8px;border:0;margin:0}
+  .biz{flex-direction:row;overflow-x:auto;padding:0 max(16px,env(safe-area-inset-left,0px)) 4px}
+  .biz button{white-space:nowrap;flex:none}.biz button.on{box-shadow:inset 0 -3px 0 var(--veneer)}.biz small{display:none}
+  .main{padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .form{grid-template-columns:minmax(0,1fr)}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}.biz{scrollbar-width:none}
+}
+.main.embed{padding:0;max-width:none;height:100vh;overflow:hidden}.main.embed iframe{display:block;width:100%;height:100%;border:0}
+#osGate{position:fixed;inset:0;z-index:50;background:var(--rail);display:flex;align-items:center;justify-content:center;padding:24px 16px}
+#osGate form{background:var(--surface);color:var(--fg);border-radius:6px;padding:24px;width:100%;max-width:420px;display:grid;gap:12px}
+#osGate label{display:grid;gap:3px;font-size:13px;font-weight:500;color:var(--muted)}
+#osGate input{padding:9px 10px;width:100%;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
+#osOut{all:unset;cursor:pointer;color:var(--rail-muted);font-size:13px;text-decoration:underline;display:block;margin:14px 20px 0}
+[hidden]{display:none!important}body{margin:0}
+@media (max-width:760px){.main.embed{height:calc(100vh - 110px)}}
+</style></head><body>
+<div class="app">
+  <aside class="rail"><div class="brand"><b>SALEEM OS</b><span>All businesses</span></div><nav class="biz" id="nav" aria-label="Businesses"></nav></aside>
+  <main class="main" id="main"><p class="sub">Loading your records…</p></main>
+</div>
+<div id="layer"></div>
+
+<script src="../vendor/supabase.js"></script>
+<script src="../config.js"></script>
+<script>
+/* Saleem OS sign-in and data. Uses the same database and sign-in as the Woodland app, so one login opens both. */
+(function(){
+  const CFG=window.WOODLAND_CONFIG,sb=supabase.createClient(CFG.url,CFG.anonKey);
+  let me=null,prof=null,ready;
+  const signedIn=new Promise(r=>{ready=r;});
+  const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  async function enter(uid){
+    const {data}=await sb.from("profiles").select("name,role,active,os_access").eq("id",uid).maybeSingle();
+    if(!data||!data.active){await sb.auth.signOut();gate("This login isn't active. Ask an admin to set it up.");return;}
+    if(!data.os_access){location.replace("../index.html");return;}
+    me=uid;prof=data;const g=document.getElementById("osGate");if(g)g.remove();ready();
+    const brand=document.querySelector(".brand");if(brand&&!document.getElementById("osOut")){const b=document.createElement("button");b.id="osOut";b.textContent="Sign out · "+data.name;b.onclick=async()=>{await sb.auth.signOut();location.reload();};brand.after(b);}
+  }
+  function gate(err){
+    let g=document.getElementById("osGate");if(!g){g=document.createElement("div");g.id="osGate";document.body.append(g);}
+    g.innerHTML='<form id="osLogin"><div><h1>Saleem OS</h1><div class="sub">One sign-in for your businesses</div></div><label>Your name or email<input id="osName" autocomplete="username" autocapitalize="none" required></label><label>Your PIN<input id="osPin" type="password" autocomplete="current-password" required></label><div class="err" role="alert" style="color:var(--crit)">'+esc(err||"")+'</div><button class="btn pri">Sign in</button></form>';
+    document.getElementById("osLogin").onsubmit=async e=>{
+      e.preventDefault();const name=document.getElementById("osName").value.trim(),slug=name.toLowerCase().replace(/[^a-z0-9]/g,"");e.target.querySelector("button").disabled=true;
+      const {data,error}=await sb.auth.signInWithPassword({email:name.includes("@")?name.toLowerCase():slug+"@"+CFG.loginDomain,password:document.getElementById("osPin").value});
+      if(error){gate(/fetch|network/i.test(error.message)?"Couldn't reach the server. Check the internet.":"That name and PIN don't match. Try again, or ask an admin.");return;}
+      enter(data.user.id);
+    };
+  }
+  document.addEventListener("DOMContentLoaded",async()=>{const {data}=await sb.auth.getSession();if(data.session)enter(data.session.user.id);else gate();});
+  const snap=rows=>({docs:rows.map(r=>({id:String(r.id),data:()=>r.doc})),metadata:{fromCache:false}});
+  function live(table,load,next,error){
+    const go=()=>load().then(next).catch(e=>{if(error)error(e);});
+    go();let t;sb.channel("os-"+table).on("postgres_changes",{event:"*",schema:"public",table},()=>{clearTimeout(t);t=setTimeout(go,300);}).subscribe();
+    window.addEventListener("focus",go);return ()=>{};
+  }
+  const check=({data,error})=>{if(error)throw error;return data;};
+  const records={
+    onSnapshot(next,error){return live("os_records",async()=>snap(check(await sb.from("os_records").select("id,doc").limit(20000))),next,error);},
+    add:async doc=>{check(await sb.from("os_records").insert({doc}).select("id"));},
+    doc:id=>({
+      set:async doc=>{check(await sb.from("os_records").upsert({id,doc,updated_at:new Date().toISOString()}).select("id"));},
+      update:async part=>{const cur=check(await sb.from("os_records").select("doc").eq("id",id).single());check(await sb.from("os_records").update({doc:{...cur.doc,...part},updated_at:new Date().toISOString()}).eq("id",id).select("id"));},
+      delete:async()=>{check(await sb.from("os_records").delete().eq("id",id).select("id"));}
+    })
+  };
+  const activity={
+    orderBy(){return this;},limit(){return this;},
+    onSnapshot(next,error){return live("os_activity",async()=>snap(check(await sb.from("os_activity").select("id,doc").order("id",{ascending:false}).limit(300))),next,error);},
+    add:async doc=>{check(await sb.from("os_activity").insert({doc}).select("id"));}
+  };
+  const user={id:async()=>me,can:async()=>true,profiles:async ids=>{const rows=check(await sb.from("profiles").select("id,name").in("id",ids));const o={};rows.forEach(r=>{o[r.id]={name:r.name};});ids.forEach(i=>{if(i===me&&!o[i])o[i]={name:prof.name};});return o;}};
+  const downloads={save:async({filename,data})=>{const u=URL.createObjectURL(new Blob([data])),a=document.createElement("a");a.href=u;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);}};
+  window.claude={use:async n=>{await signedIn;return n==="db"?{collection:c=>c==="activity"?activity:records}:n==="user"?user:n==="downloads"?downloads:null;}};
+})();
+</script>
+
+<script>
+const DEFAULTS=[
+  {id:"woodland",name:"Woodland Ply",note:"Plywood · Woodland and KTR factories",url:"../index.html"},
+  {id:"akosys",name:"Akosys Pvt",note:"Plywood & pallets",full:true},
+  {id:"asr",name:"ASR Pvt Ltd",note:"Resins"},
+  {id:"tgf",name:"TGF Saudi",note:""},
+  {id:"goldenasia",name:"Golden Asia",note:"Palm · Dubai"},
+  {id:"falcon",name:"Falcon",note:""},
+  {id:"woodlite",name:"Woodlite",note:""}
+];
+let BUSINESSES=DEFAULTS;
+function mergeBiz(){
+  const over={};S.records.filter(r=>r.kind==="biz").forEach(r=>{over[r.bizId]=r;});
+  const list=DEFAULTS.map(b=>{const o=over[b.id];return o?{...b,name:o.name||b.name,note:o.note||"",full:o.screens?o.screens==="Full":b.full,rid:o.id}:b;});
+  Object.values(over).filter(r=>!DEFAULTS.some(b=>b.id===r.bizId)).forEach(r=>list.push({id:r.bizId,name:r.name,note:r.note||"",full:r.screens==="Full",rid:r.id}));
+  return list;
+}
+const UNITS=["Nos","CBM","Sq ft","Kg","Ton","Litre"];
+const KINDS={
+  followup:{tab:"Follow-ups",one:"follow-up",sort:"due",dir:1,fields:[
+    {k:"due",label:"Follow up on",type:"date"},{k:"party",label:"Party",list:"party"},{k:"about",label:"About",req:1,wide:1,full:1},
+    {k:"owner",label:"Who follows up"},{k:"status",label:"Status",type:"select",options:["Open","Done"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  party:{tab:"Parties",one:"party",sort:"name",dir:1,fields:[
+    {k:"name",label:"Party name",req:1,wide:1},{k:"region",label:"Region",list:"region"},{k:"person",label:"Contact person"},{k:"phone",label:"Phone"},
+    {k:"product",label:"Product",list:"product"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  region:{tab:"Marketers",one:"marketer",sort:"region",dir:1,fullOnly:1,fields:[
+    {k:"region",label:"Region",req:1},{k:"person",label:"Freelance marketer"},{k:"commission",label:"Commission %",type:"number"},{k:"phone",label:"Phone"},{k:"product",label:"Product",list:"product"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  product:{tab:"Products",one:"product",sort:"name",dir:1,fullOnly:1,fields:[
+    {k:"name",label:"Product",req:1,wide:1},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  maker:{tab:"Machine makers",one:"machine maker",sort:"name",dir:1,fullOnly:1,fields:[
+    {k:"name",label:"Company",req:1,wide:1},{k:"contact",label:"Contact person"},{k:"phone",label:"Phone"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  machine:{tab:"Machine models & pallets",one:"machine model",sort:"maker",dir:1,fullOnly:1,fields:[
+    {k:"maker",label:"Company",list:"maker",req:1},{k:"model",label:"Machine model",req:1},{k:"use",label:"Makes (block, brick or paver)"},{k:"pallet",label:"Pallet size",list:"pallet"},
+    {k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  production:{tab:"Production report",one:"production entry",sort:"date",dir:-1,fullOnly:1,fields:[
+    {k:"date",label:"Date",type:"date",req:1},{k:"machine",label:"For machine model",list:"machine"},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet"},
+    {k:"qty",label:"Quantity made",type:"number",req:1},{k:"operator",label:"Operator or shift"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  pallet:{tab:"Pallet sizes",one:"pallet size",sort:"size",dir:1,fullOnly:1,fields:[
+    {k:"size",label:"Size (L × W × H mm)",req:1},{k:"type",label:"Type"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  inout:{tab:"Inward / outward",one:"stock movement",sort:"date",dir:-1,fullOnly:1,fields:[
+    {k:"date",label:"Date",type:"date",req:1},{k:"direction",label:"Direction",type:"select",options:["Inward","Outward"],req:1},{k:"item",label:"Item",list:"product",req:1},
+    {k:"qty",label:"Quantity",type:"number",req:1},{k:"unit",label:"Unit",type:"select",options:UNITS},{k:"party",label:"Party",list:"party"},{k:"vehicle",label:"Vehicle or challan no."},
+    {k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  order:{tab:"Pending orders",one:"order",sort:"due",dir:1,fields:[
+    {k:"date",label:"Order date",type:"date"},{k:"party",label:"Party",list:"party",req:1},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet",fullOnly:1},
+    {k:"marketer",label:"Marketer",list:"marketer",fullOnly:1},{k:"qty",label:"Ordered",type:"number"},{k:"sent",label:"Dispatched",type:"number"},{k:"balance",label:"Balance",calc:1},{k:"due",label:"Due",type:"date"},
+    {k:"status",label:"Status",type:"select",options:["Pending","In production","Part dispatched","Delivered","Cancelled"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  activity:{tab:"History",one:"",fields:[]},
+  biz:{tab:"",one:"business",fields:[{k:"name",label:"Business name",req:1,full:1},{k:"note",label:"What it does",full:1},{k:"screens",label:"Screens",type:"select",options:["Standard","Full"],full:1}]},
+  remark:{tab:"Remarks & discussions",one:"remark",sort:"date",dir:-1,fields:[
+    {k:"date",label:"Date",type:"date"},{k:"about",label:"About"},{k:"text",label:"Remark",type:"textarea",req:1,wide:1,full:1}]}
+};
+const FULL_TABS=["followup","party","region","product","maker","machine","production","pallet","inout","order","remark","activity"];
+const BASIC_TABS=["followup","party","order","remark","activity"];
+const UNIQUE={party:"name",maker:"name",pallet:"size",product:"name"};
+
+const S={records:[],loaded:false,biz:"",tab:"overview",q:"",note:"",readOnly:false,modal:null,filter:"",from:"",to:"",activity:[],names:{}};
+let col=null,logCol=null,downloads=null,userCap=null,me=null;
+const $=id=>document.getElementById(id);
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const today=()=>new Date().toLocaleDateString("en-CA");
+const fmtD=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"";
+const num=n=>new Intl.NumberFormat("en-IN").format(n||0);
+const bizOf=id=>BUSINESSES.find(b=>b.id===id);
+const rec=(biz,kind)=>S.records.filter(r=>r.biz===biz&&r.kind===kind);
+const fieldsFor=(kind,biz)=>KINDS[kind].fields.filter(f=>!f.fullOnly||(bizOf(biz)||{}).full);
+const daysLate=d=>Math.round((new Date(today()+"T00:00:00")-new Date(d+"T00:00:00"))/864e5);
+const openFU=biz=>rec(biz,"followup").filter(r=>r.status!=="Done");
+const lateFU=biz=>openFU(biz).filter(r=>r.due&&r.due<today());
+const openOrders=biz=>rec(biz,"order").filter(r=>r.status!=="Delivered"&&r.status!=="Cancelled");
+const balance=r=>r.qty==null||r.qty===""?null:Number(r.qty)-Number(r.sent||0);
+const sum=(a,f)=>a.reduce((t,r)=>t+(Number(r[f])||0),0);
+const byDate=(a,f)=>[...a].sort((x,y)=>String(x[f]||"9").localeCompare(String(y[f]||"9")));
+
+function pill(kind,r,k){
+  const v=r[k];if(!v)return "";
+  const cls=/Done|Delivered|Running/.test(v)?"ok":/Down|Cancelled/.test(v)?"crit":/Maintenance|Part|Outward/.test(v)?"warn":"";
+  return `<span class="pill ${cls}">${esc(v)}</span>`;
+}
+function cell(kind,r,f){
+  if(f.calc){const b=balance(r);return b==null?"":num(b);}
+  if(f.type==="date"){const late=f.k==="due"&&r[f.k]&&r[f.k]<today()&&r.status!=="Done"&&r.status!=="Delivered"&&r.status!=="Cancelled";return (fmtD(r[f.k])+(late?` <span class="pill crit">${daysLate(r[f.k])}d late</span>`:""));}
+  if(f.type==="select")return pill(kind,r,f.k);
+  if(f.type==="number")return r[f.k]==null||r[f.k]===""?"":num(r[f.k]);
+  if(r[f.k]&&(f.list==="party"||(kind==="party"&&f.k==="name")))return `<button class="clk" data-a="party" data-v="${esc(r[f.k])}">${esc(r[f.k])}</button>`;
+  return esc(r[f.k]);
+}
+
+function renderNav(){
+  $("nav").innerHTML=`<button data-a="biz" data-v="" class="${S.biz?"":"on"}"><b>All businesses</b><small>Today's picture</small></button>`+BUSINESSES.map(b=>{
+    const late=lateFU(b.id).length;
+    return `<button data-a="biz" data-v="${b.id}" class="${S.biz===b.id?"on":""}"><b>${esc(b.name)}</b>${b.note?`<small>${esc(b.note)}</small>`:""}${late?`<i>${late}</i>`:""}</button>`;}).join("");
+}
+function li(title,sub,right){return `<div class="li"><div>${title}${sub?`<small>${sub}</small>`:""}</div>${right||""}</div>`;}
+function fuRow(r,biz){const late=r.due&&r.due<today();return li(esc(r.about),[esc(r.party),biz?esc(bizOf(biz).name):""].filter(Boolean).join(" · "),r.due?`<span class="pill ${late?"crit":""}">${esc(fmtD(r.due))}</span>`:"");}
+function orderRow(r){const b=balance(r);return li(esc(r.party),[esc(r.product),esc(r.pallet)].filter(Boolean).join(" · "),`<span class="pill ${r.due&&r.due<today()?"crit":""}">${b==null?esc(r.status||"Pending"):num(b)+" left"}</span>`);}
+function tile(n,l,hot){return `<div class="tile ${hot&&n?"hot":""}"><b>${esc(n)}</b><span>${esc(l)}</span></div>`;}
+
+function attention(only){
+  const t=today(),out=[];
+  BUSINESSES.filter(b=>!only||b.id===only).forEach(b=>{
+    openFU(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"followup",title:r.about,sub:"Follow-up"+(r.party?" · "+r.party:""),tag:d?d+"d late":"Today"});});
+    openOrders(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due),bal=balance(r);out.push({sev:d>0?2:1,d,b,kind:"order",title:r.party,sub:"Order"+(r.product?" · "+r.product:"")+(bal!=null?" · "+num(bal)+" left":""),tag:d?d+"d late":"Today"});});
+  });
+  return out.sort((x,y)=>y.sev-x.sev||y.d-x.d);
+}
+function attentionPanel(only){
+  const a=attention(only);
+  return `<section class="panel"><h2>Needs attention today${a.length?" · "+a.length:""}</h2>${a.map(x=>`<div class="li"><div><button class="clk" data-a="go" data-v="${esc(x.b.id)}" data-t="${x.kind}">${esc(x.title)}</button><small>${only?"":esc(x.b.name)+" · "}${esc(x.sub)}</small></div><span class="pill ${x.sev>1?"crit":"warn"}">${esc(x.tag)}</span></div>`).join("")||'<div class="none">Nothing is due or late today.</div>'}</section>`;
+}
+function renderActivity(biz){
+  const rows=S.activity.filter(a=>a.biz===biz);
+  return `<section class="panel"><h2>Who changed what</h2>${rows.map(a=>li(esc(a.action)+" "+esc((KINDS[a.type]||{}).one||a.type)+(a.label?": "+esc(a.label):""),esc(S.names[a.by]||"Someone")+" · "+esc(new Date(a.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})))).join("")||'<div class="none">Changes made from now on will be listed here.</div>'}</section>`;
+}
+function chips(){
+  const opts={followup:[["","Open"],["late","Late"],["closed","Done"],["all","All"]],order:[["","Pending"],["late","Late"],["closed","Delivered or cancelled"],["all","All"]]}[S.tab];
+  return opts?`<div class="bar">${opts.map(([v,l])=>`<button class="btn sm ${S.filter===v?"chipon":""}" aria-pressed="${S.filter===v}" data-a="filter" data-v="${v}">${esc(l)}</button>`).join("")}</div>`:"";
+}
+function renderHome(){
+  const totals=BUSINESSES.reduce((t,b)=>({fu:t.fu+openFU(b.id).length,late:t.late+lateFU(b.id).length,ord:t.ord+openOrders(b.id).length}),{fu:0,late:0,ord:0});
+  return `<div class="head"><div><h1>All businesses</h1><div class="sub">${esc(fmtD(today()))}</div></div><div class="bar" style="margin:0">${downloads?'<button class="btn" data-a="backup">Download backup</button>':""}${S.readOnly?"":'<button class="btn" data-a="addbiz">Add business</button>'}</div></div>
+  <div class="tiles">${tile(BUSINESSES.length,"Businesses")}${tile(totals.fu,"Open follow-ups")}${tile(totals.late,"Late follow-ups",1)}${tile(totals.ord,"Pending orders")}</div>
+  ${attentionPanel()}
+  <section class="panel"><h2>Businesses</h2><div class="scroll"><table><thead><tr><th>Business</th><th>What it does</th><th class="n">Open follow-ups</th><th class="n">Late</th><th class="n">Pending orders</th></tr></thead><tbody>
+  ${BUSINESSES.map(b=>`<tr><td><button class="clk" data-a="biz" data-v="${b.id}">${esc(b.name)}</button></td><td>${esc(b.note)||'<span class="sub">To be added</span>'}</td>${b.url?`<td class="n" colspan="3"><button class="clk" data-a="biz" data-v="${b.id}">Open inside Saleem OS</button></td>`:`<td class="n">${openFU(b.id).length}</td><td class="n">${lateFU(b.id).length?`<span class="pill crit">${lateFU(b.id).length}</span>`:0}</td><td class="n">${openOrders(b.id).length}</td>`}</tr>`).join("")}
+  </tbody></table></div></section>
+  `;
+}
+function renderOverview(b){
+  const id=b.id,fu=byDate(openFU(id),"due"),ord=byDate(openOrders(id),"due"),rem=byDate(rec(id,"remark"),"date").reverse();
+  const m=today().slice(0,7),prod=rec(id,"production");
+  let h=`<div class="tiles">${tile(fu.length,"Open follow-ups")}${tile(lateFU(id).length,"Late follow-ups",1)}${tile(ord.length,"Pending orders")}${tile(rec(id,"party").length,"Parties")}`;
+  if(b.full)h+=tile(num(sum(prod.filter(r=>r.date===today()),"qty")),"Made today")+tile(num(sum(prod.filter(r=>String(r.date).slice(0,7)===m),"qty")),"Made this month");
+  h+=`</div>${attentionPanel(id)}<div class="grid2"><section class="panel"><h2>Next follow-ups</h2>${fu.slice(0,6).map(r=>fuRow(r)).join("")||'<div class="none">No open follow-ups.</div>'}</section>
+  <section class="panel"><h2>Pending orders</h2>${ord.slice(0,6).map(orderRow).join("")||'<div class="none">No pending orders.</div>'}</section>`;
+  if(b.full)h+=`<section class="panel"><h2>Marketers</h2>${rec(id,"region").sort((x,y)=>String(x.region).localeCompare(y.region)).map(r=>li(esc(r.region),esc(r.product),`<span>${esc(r.person)}</span>`)).join("")||'<div class="none">No marketers yet.</div>'}</section>
+  <section class="panel"><h2>Products</h2>${rec(id,"product").map(r=>li(esc(r.name),esc(r.remarks))).join("")||'<div class="none">No products yet.</div>'}</section>`;
+  h+=`<section class="panel"><h2>Latest remarks</h2>${rem.slice(0,5).map(r=>li(esc(r.text),[esc(fmtD(r.date)),esc(r.about)].filter(Boolean).join(" · "))).join("")||'<div class="none">No remarks yet.</div>'}</section></div>`;
+  return h;
+}
+const prodFrom=()=>S.from||today().slice(0,7)+"-01";
+const prodTo=()=>S.to||today();
+const prodInRange=biz=>rec(biz,"production").filter(r=>r.date>=prodFrom()&&r.date<=prodTo());
+function summary(kind,biz){
+  if(kind==="production"){
+    const p=prodInRange(biz),group=k=>{const t={};p.forEach(r=>{const n=r[k]||"Not entered";t[n]=(t[n]||0)+(Number(r.qty)||0);});return Object.entries(t).sort((x,y)=>y[1]-x[1]);};
+    const tb=(title,rows)=>`<section class="panel"><h2>${title}</h2>${rows.map(([n,q])=>li(esc(n),"",`<b>${num(q)}</b>`)).join("")||'<div class="none">No production in these dates.</div>'}</section>`;
+    return `<div class="bar"><label class="dt">From<input type="date" id="pf" value="${esc(prodFrom())}"></label><label class="dt">To<input type="date" id="pt" value="${esc(prodTo())}"></label></div>
+    <div class="tiles">${tile(num(sum(rec(biz,kind).filter(r=>r.date===today()),"qty")),"Made today")}${tile(num(sum(p,"qty")),"Made in these dates")}${tile(new Set(p.map(r=>r.date)).size,"Days reported")}</div>
+    <div class="grid2" style="margin-bottom:14px">${tb("By product",group("product"))}${tb("By machine",group("machine"))}</div>`;
+  }
+  if(kind==="inout"){
+    const t={};rec(biz,kind).forEach(r=>{const key=(r.item||"")+"|"+(r.unit||"");t[key]=t[key]||{item:r.item,unit:r.unit,i:0,o:0};t[key][r.direction==="Outward"?"o":"i"]+=Number(r.qty)||0;});
+    const rows=Object.values(t);
+    return rows.length?`<section class="panel"><h2>Balance by item</h2><div class="scroll"><table><thead><tr><th>Item</th><th>Unit</th><th class="n">Inward</th><th class="n">Outward</th><th class="n">Balance</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${esc(x.item)}</td><td>${esc(x.unit)}</td><td class="n">${num(x.i)}</td><td class="n">${num(x.o)}</td><td class="n"><b>${num(x.i-x.o)}</b></td></tr>`).join("")}</tbody></table></div></section>`:"";
+  }
+  return "";
+}
+function tableHTML(kind,biz){
+  const def=KINDS[kind],fields=fieldsFor(kind,biz),q=S.q.trim().toLowerCase();
+  let rows=rec(biz,kind);
+  if(kind==="production")rows=prodInRange(biz);
+  if(kind==="followup")rows=rows.filter(r=>S.filter==="all"||(S.filter==="closed"?r.status==="Done":r.status!=="Done"&&(S.filter!=="late"||(r.due&&r.due<today()))));
+  if(kind==="order")rows=rows.filter(r=>{const shut=/Delivered|Cancelled/.test(r.status||"");return S.filter==="all"||(S.filter==="closed"?shut:!shut&&(S.filter!=="late"||(r.due&&r.due<today())));});
+  if(q)rows=rows.filter(r=>fields.some(f=>String(r[f.k]||"").toLowerCase().includes(q)));
+  rows.sort((a,b)=>String(a[def.sort]||(def.dir>0?"￿":"")).localeCompare(String(b[def.sort]||(def.dir>0?"￿":"")))*def.dir);
+  if(kind==="order")rows.sort((a,b)=>(/Delivered|Cancelled/.test(a.status||"")?1:0)-(/Delivered|Cancelled/.test(b.status||"")?1:0));
+  if(kind==="followup")rows.sort((a,b)=>(a.status==="Done"?1:0)-(b.status==="Done"?1:0));
+  if(!rows.length)return `<div class="none">${q||rec(biz,kind).length?"Nothing matches this search, filter or date range.":`No ${esc(def.tab.toLowerCase())} yet.${S.readOnly?"":` Use “Add ${esc(def.one)}” to enter the first one.`}`}</div>`;
+  return `<div class="scroll"><table><thead><tr>${fields.map(f=>`<th class="${f.type==="number"||f.calc?"n":""}">${esc(f.label)}</th>`).join("")}${S.readOnly?"":"<th></th>"}</tr></thead><tbody>${rows.map(r=>`<tr>${fields.map(f=>`<td class="${f.type==="number"||f.calc?"n":f.type==="date"?"d":f.wide?"w":""}">${cell(kind,r,f)}</td>`).join("")}${S.readOnly?"":`<td class="act">${kind==="followup"&&r.status!=="Done"?`<button class="btn sm" data-a="done" data-id="${esc(r.id)}">Mark done</button> `:""}<button class="btn sm" data-a="edit" data-id="${esc(r.id)}">Edit</button></td>`}</tr>`).join("")}</tbody></table></div>`;
+}
+function render(){
+  if(S.biz&&!bizOf(S.biz))S.biz="";
+  renderNav();
+  const m=$("main");
+  m.classList.toggle("embed",!!(S.biz&&bizOf(S.biz).url));
+  const note=S.note?`<div class="msg" role="status">${esc(S.note)}</div>`:"";
+  if(!S.loaded&&!S.note){m.innerHTML='<p class="sub">Loading your records…</p>';return;}
+  if(!S.biz){m.innerHTML=note+renderHome();return;}
+  const b=bizOf(S.biz),tabs=b.full?FULL_TABS:BASIC_TABS;
+  if(b.url){if(!m.querySelector("iframe"))m.innerHTML=`<iframe src="${esc(b.url)}" title="${esc(b.name)}"></iframe>`;return;m.innerHTML=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)}</div></div></div><section class="panel"><h2>Woodland Ply has its own app</h2><div class="none">Production, stock, dispatch, customers and money are kept in the Woodland app, with separate logins. Its figures don't appear in Saleem OS yet.</div><div style="padding:0 14px 16px"><a class="btn pri" style="display:inline-block;text-decoration:none" href="${esc(b.url)}" target="_blank" rel="noopener">Open Woodland app</a></div></section>`;return;}
+  if(S.tab!=="overview"&&!tabs.includes(S.tab))S.tab="overview";
+  let h=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)||"Business details to be added"}</div></div>${S.readOnly?"":'<button class="btn" data-a="editbiz">Edit details</button>'}</div>
+  <div class="tabs" role="tablist"><button role="tab" aria-selected="${S.tab==="overview"}" data-a="tab" data-v="overview" class="${S.tab==="overview"?"on":""}">Overview</button>${tabs.map(k=>`<button role="tab" aria-selected="${S.tab===k}" data-a="tab" data-v="${k}" class="${S.tab===k?"on":""}">${esc(KINDS[k].tab)}</button>`).join("")}</div>`;
+  if(S.tab==="overview")h+=renderOverview(b);
+  else if(S.tab==="activity")h+=renderActivity(b.id);
+  else{
+    const def=KINDS[S.tab];
+    h+=summary(S.tab,b.id)+`${chips()}<div class="bar"><input type="search" id="q" placeholder="Search ${esc(def.tab.toLowerCase())}" aria-label="Search" value="${esc(S.q)}">${S.readOnly?"":`<button class="btn pri" data-a="add">Add ${esc(def.one)}</button>`}${downloads?'<button class="btn" data-a="export">Export to Excel</button>':""}</div><section class="panel" id="tbl">${tableHTML(S.tab,b.id)}</section>`;
+  }
+  const hadFocus=document.activeElement&&document.activeElement.id==="q",pos=hadFocus?document.activeElement.selectionStart:0;
+  m.innerHTML=h;
+  const on=m.querySelector(".tabs .on");if(on&&on.parentNode.scrollWidth>on.parentNode.clientWidth)on.parentNode.scrollLeft=on.offsetLeft-on.parentNode.offsetLeft-16;
+  if(hadFocus&&$("q")){$("q").focus();$("q").setSelectionRange(pos,pos);}
+}
+
+/* ---- add / edit ---- */
+function suggestions(list,biz){
+  const map={party:[["party","name"]],region:[["region","region"]],product:[["product","name"]],machine:[["machine","model"]],maker:[["maker","name"]],marketer:[["region","person"]],pallet:[["pallet","size"]]}[list]||[];
+  const out=new Set();map.forEach(([k,f])=>rec(biz,k).forEach(r=>r[f]&&out.add(r[f])));
+  return [...out].sort();
+}
+function openForm(kind,id,bizId){
+  S.modal={kind,id:id||null,bizId:bizId||null,confirm:false,err:"",busy:false};renderModal();
+}
+function renderModal(){
+  const L=$("layer"),M=S.modal;
+  if(!M){L.innerHTML="";return;}
+  if(M.party){L.innerHTML=partyHTML(M.party);return;}
+  const def=KINDS[M.kind];let r=M.id?S.records.find(x=>x.id===M.id)||{}:{};
+  if(M.kind==="biz"&&M.bizId){const b=bizOf(M.bizId);r={...r,name:b.name,note:b.note,screens:b.full?"Full":"Standard"};}
+  const fresh=!M.id&&!M.bizId;
+  const fields=fieldsFor(M.kind,S.biz).filter(f=>!f.calc);
+  const input=f=>{
+    const v=r[f.k]==null?(fresh&&f.type==="date"&&(f.k==="date"||(M.kind==="followup"&&f.k==="due"))?today():""):r[f.k],id="f-"+f.k,rq=f.req?"required":"";
+    if(f.type==="textarea")return `<textarea id="${id}" rows="3" ${rq}>${esc(v)}</textarea>`;
+    if(f.type==="select")return `<select id="${id}" ${rq}>${f.options.map(o=>`<option ${o===v?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    if(f.list)return `<input id="${id}" list="dl-${f.k}" value="${esc(v)}" autocomplete="off" ${rq}><datalist id="dl-${f.k}">${suggestions(f.list,S.biz).map(o=>`<option value="${esc(o)}"></option>`).join("")}</datalist>`;
+    return `<input id="${id}" type="${f.type==="number"?"number":f.type==="date"?"date":"text"}" ${f.type==="number"?'step="any" min="0" inputmode="decimal"':""} value="${esc(v)}" autocomplete="off" ${rq}>`;
+  };
+  L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="${fresh?"Add":"Edit"} ${esc(def.one)}">
+    <h2>${fresh?"Add":"Edit"} ${esc(def.one)}</h2>
+    <div class="form">${fields.map(f=>`<label class="${f.full?"full":""}">${esc(f.label)}${f.req?" *":""}${input(f)}</label>`).join("")}</div>
+    <div class="err" id="ferr" role="alert"></div>
+    <div class="actions"><button class="btn pri" ${M.busy?"disabled":""}>${M.busy?"Saving…":"Save"}</button><button type="button" class="btn" data-a="close">Cancel</button><span class="sp"></span>
+    ${fresh||M.kind==="biz"?"":M.confirm?`<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>`:`<button type="button" class="btn dang" data-a="del">Delete</button>`}</div>
+  </form></div>`;
+  const first=L.querySelector("input,select,textarea");if(first&&!M.touched){first.focus();M.touched=true;}
+}
+function partyHTML(name){
+  const n=name.toLowerCase(),is=r=>String(r.party||"").toLowerCase()===n;
+  const p=rec(S.biz,"party").find(r=>String(r.name).toLowerCase()===n)||{};
+  const fu=byDate(rec(S.biz,"followup").filter(r=>is(r)&&r.status!=="Done"),"due"),ord=byDate(openOrders(S.biz).filter(is),"due"),mv=byDate(rec(S.biz,"inout").filter(is),"date").reverse().slice(0,8);
+  const none=t=>`<div class="none">${t}</div>`;
+  return `<div class="wrap" data-a="closebg"><div class="modal wide" data-stop="1" role="dialog" aria-modal="true" aria-label="${esc(name)}">
+    <h2>${esc(name)}</h2><p class="sub" style="margin:0 0 12px">${[p.region,p.person,p.phone,p.product].filter(Boolean).map(esc).join(" · ")||"No contact details entered yet."}</p>
+    <section class="panel"><h2>Open follow-ups</h2>${fu.map(r=>fuRow(r)).join("")||none("None.")}</section>
+    <section class="panel"><h2>Pending orders</h2>${ord.map(orderRow).join("")||none("None.")}</section>
+    ${bizOf(S.biz).full?`<section class="panel"><h2>Latest stock movements</h2>${mv.map(r=>li(esc(r.direction)+" · "+esc(r.item),esc(fmtD(r.date)),`<b>${num(r.qty)} ${esc(r.unit)}</b>`)).join("")||none("None.")}</section>`:""}
+    <div class="actions"><button type="button" class="btn" data-a="close">Close</button></div></div></div>`;
+}
+function logEvent(biz,action,type,label){
+  if(!logCol)return;
+  logCol.add({biz,action,type,label:String(label||"").slice(0,120),by:me||"",at:new Date().toISOString()}).catch(()=>{});
+}
+const labelOf=(kind,d)=>{const f=KINDS[kind].fields.find(x=>x.req);return f?d[f.k]:"";};
+function resolveNames(){
+  if(!userCap||!userCap.profiles)return;
+  const ids=[...new Set(S.activity.map(a=>a.by).filter(id=>id&&!(id in S.names)))].slice(0,64);
+  if(!ids.length)return;
+  ids.forEach(id=>{S.names[id]="";});
+  userCap.profiles(ids).then(ps=>{ids.forEach(id=>{S.names[id]=(ps[id]&&ps[id].name)||"";});if(S.tab==="activity")render();}).catch(()=>{});
+}
+const csvCell=v=>{if(typeof v==="number")return String(v);let t=String(v==null?"":v);if(/^[=+\-@]/.test(t))t="'"+t;return /[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;};
+async function exportTab(){
+  const fields=fieldsFor(S.tab,S.biz),rows=rec(S.biz,S.tab);
+  const csv=[fields.map(f=>csvCell(f.label)).join(",")].concat(rows.map(r=>fields.map(f=>csvCell(f.calc?balance(r):r[f.k])).join(","))).join("\r\n");
+  const name=(bizOf(S.biz).name+"-"+KINDS[S.tab].tab+"-"+today()).replace(/[^A-Za-z0-9]+/g,"-");
+  try{await downloads.save({filename:name+".csv",data:"\ufeff"+csv});}catch(e){if(e&&e.code!=="declined"){S.note="The file couldn't be saved. Try again.";render();}}
+}
+async function backup(){
+  try{await downloads.save({filename:"saleem-mh-backup-"+today()+".json",data:JSON.stringify({savedAt:new Date().toISOString(),records:S.records,history:S.activity},null,1)});}catch(e){if(e&&e.code!=="declined"){S.note="The backup couldn't be saved. Try again.";render();}}
+}
+async function saveForm(){
+  const M=S.modal,fields=fieldsFor(M.kind,S.biz).filter(f=>!f.calc),old=M.id?S.records.find(x=>x.id===M.id):null;
+  const stamp=old&&old.createdAt||new Date().toISOString();
+  const data=M.kind==="biz"?{kind:"biz",bizId:M.bizId||("b"+Date.now().toString(36)),createdAt:stamp}:{biz:S.biz,kind:M.kind,createdAt:stamp};
+  fields.forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.type==="number")v=v===""?null:Number(v);if(f.list&&v){const hit=suggestions(f.list,S.biz).find(o=>o.toLowerCase()===v.toLowerCase());if(hit)v=hit;}if(v!==""&&v!==null)data[f.k]=v;});
+  const key=UNIQUE[M.kind];
+  if(key&&!M.dupOK&&rec(S.biz,M.kind).some(r=>r.id!==M.id&&String(r[key]).toLowerCase()===String(data[key]).toLowerCase())){M.dupOK=true;$("ferr").textContent=`${data[key]} is already on the list. Press Save again only if you want a second entry.`;return;}
+  if(M.kind==="order"&&data.sent>data.qty){$("ferr").textContent="Dispatched can't be more than ordered.";return;}
+  try{
+    if(M.id)await col.doc(M.id).set(data);else if(M.kind==="biz"&&M.bizId)await col.doc("biz-"+M.bizId).set(data);else await col.add(data);
+    logEvent(M.kind==="biz"?data.bizId:S.biz,old||M.bizId?"Edited":"Added",M.kind,labelOf(M.kind,data));
+    S.modal=null;renderModal();
+  }catch(e){M.err=e&&e.code==="quota_exceeded"?"Storage is full. Delete old records, then save again.":"This couldn't be saved. Check your connection and that you have edit access, then try again.";$("ferr").textContent=M.err;}
+}
+
+document.addEventListener("click",async e=>{
+  const el=e.target.closest("[data-a]");if(!el)return;
+  const a=el.dataset.a;
+  if(a==="closebg"){if(!e.target.closest("[data-stop]")){S.modal=null;renderModal();}return;}
+  if(a==="go"){S.biz=el.dataset.v;S.tab=el.dataset.t;S.q="";S.filter="";render();window.scrollTo(0,0);return;}
+  if(a==="party"){S.modal={party:el.dataset.v};renderModal();return;}
+  if(a==="filter"){S.filter=el.dataset.v;render();return;}
+  if(a==="editbiz"){const b=bizOf(S.biz);openForm("biz",b.rid,b.id);return;}
+  if(a==="addbiz"){openForm("biz");return;}
+  if(a==="export"){exportTab();return;}
+  if(a==="backup"){backup();return;}
+  if(a==="biz"){S.biz=el.dataset.v;S.filter="";S.tab="overview";S.q="";render();window.scrollTo(0,0);}
+  else if(a==="tab"){S.tab=el.dataset.v;S.q="";S.filter="";render();}
+  else if(a==="add")openForm(S.tab);
+  else if(a==="edit")openForm(S.tab,el.dataset.id);
+  else if(a==="close"){S.modal=null;renderModal();}
+  else if(a==="del"){S.modal.confirm=true;el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
+  else if(a==="delyes"){try{const gone=S.records.find(x=>x.id===S.modal.id)||{};await col.doc(S.modal.id).delete();logEvent(S.biz,"Deleted",S.modal.kind,labelOf(S.modal.kind,gone));S.modal=null;renderModal();}catch(err){$("ferr").textContent="This couldn't be deleted. Try again.";}}
+  else if(a==="done"){try{const fu=S.records.find(x=>x.id===el.dataset.id)||{};await col.doc(el.dataset.id).update({status:"Done"});logEvent(S.biz,"Marked done","followup",fu.about);}catch(err){S.note="That follow-up couldn't be updated. Try again.";render();}}
+});
+document.addEventListener("change",e=>{if(e.target.id==="pf"){S.from=e.target.value;render();}if(e.target.id==="pt"){S.to=e.target.value;render();}});
+document.addEventListener("input",e=>{if(e.target.id==="q"){S.q=e.target.value;const t=$("tbl");if(t)t.innerHTML=tableHTML(S.tab,S.biz);}});
+document.addEventListener("submit",e=>{if(e.target.id==="recForm"){e.preventDefault();saveForm();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;renderModal();}});
+
+/* ---- start: open a business from the link, then load the shared records ---- */
+(function(){const[b,t]=location.hash.slice(1).split("-");if(bizOf(b)){S.biz=b;if(KINDS[t])S.tab=t;}})();
+render();
+(async function(){
+  const db=await claude.use("db");
+  if(!db){S.note="Sign in to Claude to see and save these records.";S.readOnly=true;render();return;}
+  const user=await claude.use("user");userCap=user;
+  downloads=await claude.use("downloads");
+  try{me=user&&user.id?await user.id():null;}catch(e){me=null;}
+  if(user&&user.can&&(await user.can("data.write"))===false)S.readOnly=true;
+  col=db.collection("records");logCol=db.collection("activity");
+  logCol.orderBy("at","desc").limit(300).onSnapshot(sn=>{S.activity=sn.docs.map(d=>({...d.data(),id:d.id}));resolveNames();if(S.tab==="activity")render();},()=>{});
+  const slow=setTimeout(()=>{S.note="The records can't be reached yet. Check your connection.";render();},10000);
+  col.onSnapshot(snap=>{
+    S.records=snap.docs.map(d=>({...d.data(),id:d.id}));BUSINESSES=mergeBiz();S.loaded=true;
+    if(!snap.metadata.fromCache){clearTimeout(slow);S.note="";}
+    render();
+  },()=>{clearTimeout(slow);S.loaded=true;S.note="The records stopped loading. Reopen this page to try again.";S.readOnly=true;render();});
+})();
+</script>
+</body></html>
