@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d3328">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Akosys</title>
+<link rel="icon" href="../icon-192.png"><link rel="apple-touch-icon" href="../icon-192.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: factory register. Rail of departments, a factory switch, sheets of figures measured in sheets, sq ft and sq ft x mm */
+:root{
+  --bg:#eff1ec;--surface:#fff;--surface2:#f4f5f1;--line:#d7dbd0;--fg:#1b241d;--muted:#5a665c;
+  --rail:#1d3328;--rail-fg:#dfe8e0;--rail-muted:#94a998;--rail-on:#2c4a3a;--grain:#d3a35a;
+  --accent:#27624a;--accent-ink:#fff;
+  --crit:#b3261e;--crit-soft:#f9e4e2;--warn:#8a5a00;--warn-soft:#f7ecd6;--ok:#22704a;--ok-soft:#dff1e7;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;--body:"Barlow","Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#10170f;--surface:#18211a;--surface2:#1f2a21;--line:#303d32;--fg:#e5ebe4;--muted:#a1aea2;
+  --rail:#0c130d;--rail-on:#233429;--accent:#79c6a2;--accent-ink:#0b2118;
+  --crit:#f18b82;--crit-soft:#3b1f1d;--warn:#e5b65e;--warn-soft:#352a13;--ok:#7dd1a2;--ok-soft:#16301f;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10170f;--surface:#18211a;--surface2:#1f2a21;--line:#303d32;--fg:#e5ebe4;--muted:#a1aea2;
+  --rail:#0c130d;--rail-on:#233429;--accent:#79c6a2;--accent-ink:#0b2118;
+  --crit:#f18b82;--crit-soft:#3b1f1d;--warn:#e5b65e;--warn-soft:#352a13;--ok:#7dd1a2;--ok-soft:#16301f;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--body)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2{font-family:var(--display);margin:0;text-wrap:balance}
+.demo{background:var(--warn-soft);color:var(--warn);font-size:13px;font-weight:500;padding-block:5px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.app{display:grid;grid-template-columns:216px minmax(0,1fr);min-height:100vh}
+.rail{background:var(--rail);color:var(--rail-fg);padding-block:18px}
+.brand{padding:0 18px 14px;border-bottom:1px solid var(--rail-on);margin-bottom:8px}
+.brand b{display:block;font:700 22px/1.1 var(--display);letter-spacing:.03em}
+.brand span{font-size:12px;color:var(--rail-muted)}
+.nav{display:flex;flex-direction:column;gap:1px;padding:0 8px}
+.nav button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:5px;white-space:nowrap}
+.nav button:hover{background:var(--rail-on)}
+.nav button:focus-visible{outline:2px solid var(--grain)}
+.nav button.on{background:var(--rail-on);box-shadow:inset 3px 0 0 var(--grain)}
+.nav i{font-style:normal;font-size:12px;font-weight:600;background:var(--crit);color:#fff;border-radius:9px;padding:0 7px}
+.who{padding:14px 18px 0;font-size:13px;color:var(--rail-muted)}
+.who button{all:unset;cursor:pointer;color:var(--rail-fg);text-decoration:underline;display:block;margin-top:4px}
+.main{padding-block:22px 48px;padding-left:max(22px,env(safe-area-inset-left,0px));padding-right:max(22px,env(safe-area-inset-right,0px));min-width:0;max-width:1240px}
+.head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
+h1{font-size:34px;font-weight:700;line-height:1.05}
+.sub{color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px 14px}
+.tile b{display:block;font:600 29px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--muted)}
+.tile small{display:block;color:var(--muted);font-size:12px}
+.tile.hot b{color:var(--crit)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:5px;min-width:0;margin-bottom:14px}
+.panel.alert{border-color:var(--crit)}
+.panel h2{font-size:18px;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--line)}
+.panel.alert h2{color:var(--crit);background:var(--crit-soft)}
+.none{padding:18px 14px;color:var(--muted)}
+.note{padding:10px 14px;color:var(--muted);font-size:13px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px;align-items:start}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;font-weight:600;color:var(--muted);text-align:left;background:var(--surface2);white-space:nowrap}
+th,td{padding:7px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.nw{white-space:nowrap}
+tr.tot td{font-weight:600;background:var(--surface2)}
+.btn{cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:7px 12px;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.pri,.btn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.dang{color:var(--crit)}
+.btn.sm{padding:3px 9px;font-size:13px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:9px;background:var(--surface2);white-space:nowrap}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}.pill.warn{background:var(--warn-soft);color:var(--warn)}.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.wrap{position:fixed;inset:0;z-index:20;background:rgba(5,15,8,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:max(24px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.modal{background:var(--surface);border-radius:6px;width:100%;max-width:600px;padding:18px}
+.modal.wide{max-width:860px}
+.modal h2{font-size:24px;font-weight:600;margin-bottom:12px}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.form label{display:flex;flex-direction:column;gap:3px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
+.form input,.form select{width:100%;padding:8px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.err{color:var(--crit);margin-top:10px}.err:empty{display:none}
+.calc{margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:5px;font-size:14px}.calc:empty{display:none}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.login form{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:22px;width:100%;max-width:420px;display:grid;gap:12px}
+.login label{display:grid;gap:3px;font-size:13px;font-weight:500;color:var(--muted)}
+.login input,.login select{padding:9px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;width:100%;font-size:15px}
+@media (max-width:760px){
+  .app{display:block}
+  .rail{padding-block:10px 6px}
+  .brand{padding:0 max(16px,env(safe-area-inset-left,0px)) 6px;border:0;margin:0}
+  .nav{flex-direction:row;overflow-x:auto;scrollbar-width:none;padding:0 max(16px,env(safe-area-inset-left,0px)) 4px}
+  .nav button.on{box-shadow:inset 0 -3px 0 var(--grain)}
+  .who{padding:4px max(16px,env(safe-area-inset-left,0px)) 0}.who button{display:inline;margin-left:8px}
+  .main{padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .form{grid-template-columns:minmax(0,1fr)}
+}
+[hidden]{display:none!important}body{margin:0}
+</style></head><body>
+<div id="root"></div>
+<div id="layer"></div>
+<script src="../vendor/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../docs.js"></script>
+<script>
+const FACTORIES=["Akosys"];
+const GRADES=["Pallets","TF Ply","CHQ Ply"];
+const THICK=[4,6,8,9,12,16,18,19,25];
+const SIZES=["8x4","8x3","7x4","7x3","6x4","6x3"];
+const RAW=["Core veneer","Face veneer","Resin"];
+const STATES=["Rajasthan","Chhattisgarh","Bihar","Odisha","Kerala","Karnataka","Tamil Nadu","Andhra Pradesh","Other"];
+const CTYPES=["Dealer","Contractor","Builder","Carpenter","Boat builder","Direct buyer","Other"];
+const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
+const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
+const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only"};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Daily summary"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
+
+
+const today=()=>new Date().toLocaleDateString("en-CA");
+const addDays=(iso,n)=>{const d=new Date(iso+"T00:00:00");d.setDate(d.getDate()+n);return d.toLocaleDateString("en-CA");};
+const fmtD=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit",month:"short"}):"";
+const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=n=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:1}).format(n||0);
+const inr=n=>(n<0?"-":"")+"₹"+new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}).format(Math.abs(n||0));
+const area=s=>{const[a,b]=String(s).split("x").map(Number);return a*b;};
+const sqft=r=>(Number(r.sheets)||0)*area(r.size);
+const sqmm=r=>sqft(r)*(Number(r.thick)||0);
+const $=id=>document.getElementById(id);
+
+const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
+let DB=EMPTY();
+const CFG=window.WOODLAND_CONFIG||{};
+const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
+/* Same screens as Woodland, reading Akosys's own tables. */
+const sb=sb0&&{auth:sb0.auth,storage:sb0.storage,channel:n=>sb0.channel(n),removeChannel:c=>sb0.removeChannel(c),from:t=>sb0.from(t==="profiles"||t==="documents"?t:"ak_"+t),rpc:(f,a)=>sb0.rpc("ak_"+f,a)};
+
+const S={user:null,view:"today",factory:"All",modal:null,err:"",loading:true,banner:""};
+const isAdmin=()=>S.user&&S.user.role==="admin";
+
+/* ---- all data goes through here; the database itself enforces who can see and change what ---- */
+async function fetchAll(table,order){
+  const out=[];
+  for(let from=0;;from+=1000){
+    let q=sb.from(table).select("*").range(from,from+999);
+    if(order)q=q.order(order,{ascending:false});
+    const {data,error}=await q;if(error)throw error;
+    out.push(...data);if(data.length<1000)return out;
+  }
+}
+const stampBy=r=>({...r,by:r.entered_by_name||""});
+async function loadData(){
+  const d=EMPTY(),role=S.user.role;
+  if(role==="admin"){
+    const [prod,dis,prices,inw,cust,col,pay,cnt,set,log]=await Promise.all([fetchAll("production"),fetchAll("dispatch"),fetchAll("dispatch_prices"),fetchAll("inward"),fetchAll("customers"),fetchAll("collections"),fetchAll("payments"),fetchAll("counts"),fetchAll("settings"),sb.from("audit_log").select("*").order("id",{ascending:false}).limit(200)]);
+    const pm={};prices.forEach(p=>{pm[p.id]=p;});
+    d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
+    d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
+    for(const t of ["marketers","makers","machines","pallet_sizes","followups","remarks"])d[t]=(await fetchAll(t)).map(stampBy);
+    d.factory_reports=(await fetchAll("factory_reports")).map(stampBy);d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
+    if(set[0])d.settings=set[0];
+    if(log.error)throw log.error;
+    d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
+  }else if(role==="production"){d.production=(await fetchAll("production")).map(stampBy);}
+  else{
+    d.dispatch=(await fetchAll("dispatch")).map(stampBy);
+    const {data,error}=await sb.rpc("customer_names");if(error)throw error;d.customers=data;
+  }
+  DB=d;
+}
+function friendly(e){
+  const c=e&&e.code,m=String(e&&e.message||"");
+  if(c==="23503")return "That customer isn't on the customer list. Add the customer first.";
+  if(c==="23505")return "That name is already on the list.";
+  if(c==="23514")return "One of the numbers isn't valid. Check for negative figures.";
+  if(c==="42501"||/row-level security|permission denied/i.test(m))return "You don't have access to change this.";
+  if(/fetch|network/i.test(m))return "Couldn't reach the server. Check the internet and try again. Your entry hasn't been saved.";
+  return "This couldn't be saved. Try again, and tell an admin if it keeps happening.";
+}
+const Api={
+  rows(t){return DB[t]||[];},
+  async save(t,rec){
+    const {id,rate,basis,...row}=rec;let rid=id;
+    if(id){const {error}=await sb.from(t).update(row).eq("id",id);if(error)throw error;}
+    else{const {data,error}=await sb.from(t).insert(row).select("id").single();if(error)throw error;rid=data.id;}
+    if(t==="dispatch"&&S.user.role==="admin"){
+      const old=DB.dispatch.find(r=>r.id===rid)||{};
+      if(rate!=null&&(rate!==old.rate||basis!==old.basis)){const {error}=await sb.from("dispatch_prices").upsert({id:rid,rate,basis});if(error)throw error;}
+      else if(rate==null&&old.rate!=null){const {error}=await sb.from("dispatch_prices").delete().eq("id",rid);if(error)throw error;}
+    }
+    await refresh();
+  },
+  async remove(t,id){const {error}=await sb.from(t).delete().eq("id",id);if(error)throw error;await refresh();}
+};
+let refreshing=false,again=false,channel=null;
+async function refresh(){
+  if(!S.user)return;
+  if(refreshing){again=true;return;}
+  refreshing=true;
+  try{await loadData();S.banner="";}catch(e){S.banner="Couldn't reach the server, so these figures may be out of date.";}
+  refreshing=false;
+  if(!S.user)return;
+  const form=S.modal&&!S.modal.report,typing=document.activeElement&&["INPUT","SELECT"].includes(document.activeElement.tagName)&&!form;
+  if(!typing)render();
+  if(again){again=false;refresh();}
+}
+function listen(){
+  if(channel)return;
+  let timer=null;
+  channel=sb.channel("akosys").on("postgres_changes",{event:"*",schema:"public"},()=>{clearTimeout(timer);timer=setTimeout(refresh,400);}).subscribe();
+}
+async function startSession(uid){
+  const {data,error}=await sb.from("profiles").select("name,ak_role,active").eq("id",uid).maybeSingle();
+  if(error)throw error;
+  if(!data||!data.active||!data.ak_role){S.err="This login doesn't have Akosys access yet. Ask an admin to set it up.";S.user=null;await sb.auth.signOut();return false;}
+  data.role=data.ak_role;
+  S.user=data;S.view=NAV[data.role][0][0];
+  await loadData();listen();
+  return true;
+}
+
+function summary(t,r){
+  if(t==="production"||t==="dispatch")return [r.factory,r.customer,r.grade,r.thick+" mm",r.size,num(r.sheets)+" sheets"].filter(Boolean).join(" · ");
+  if(t==="inward")return [r.factory,r.item,num(r.qty)].join(" · ");
+  if(t==="customers")return r.name;
+  if(t==="collections")return r.customer+" · "+inr(r.amount);
+  if(t==="payments")return r.payee+" · "+inr(r.amount);
+  if(t==="marketers")return r.region+" · "+(r.person||"");
+  if(t==="makers")return r.name;
+  if(t==="machines")return r.maker+" · "+r.model;
+  if(t==="pallet_sizes")return r.size;
+  if(t==="followups")return r.about;
+  if(t==="remarks")return r.text;
+  if(t==="factory_reports")return r.factory+" · "+fmtD(r.date)+" daily summary";
+  if(t==="vendors")return r.name;
+  if(t==="payables")return r.vendor+" · "+inr(r.amount);
+  if(t==="documents")return r.name+" · "+r.area+" · "+r.status;
+  if(t==="counts")return [r.factory,r.item,num(r.qty)].join(" · ");
+  return "";
+}
+
+/* ---- calculations ---- */
+const inF=r=>S.factory==="All"||r.factory===S.factory;
+function finishedStock(){
+  const t={};const get=r=>{const k=[r.factory,r.grade,r.thick,r.size].join("|");return t[k]=t[k]||{factory:r.factory,grade:r.grade,thick:Number(r.thick),size:r.size,first:0,second:0};};
+  DB.production.forEach(r=>{const x=get(r);x.first+=Number(r.sheets)||0;x.second+=Number(r.second)||0;});
+  DB.dispatch.forEach(r=>{const x=get(r);x[r.quality==="Second"?"second":"first"]-=Number(r.sheets)||0;});
+  return Object.values(t).sort((a,b)=>a.factory.localeCompare(b.factory)||a.grade.localeCompare(b.grade)||b.thick-a.thick);
+}
+function rawStock(){
+  const out=[];FACTORIES.forEach(f=>RAW.forEach(item=>{
+    const inw=DB.inward.filter(r=>r.factory===f&&r.item===item).reduce((a,r)=>a+(item==="Resin"?Number(r.qty):Number(r.qty)*(Number(r.mm)||1)),0);
+    const p=DB.production.filter(r=>r.factory===f);
+    const entered=p.reduce((a,r)=>a+(Number(item==="Core veneer"?r.core_used:item==="Face veneer"?r.face_used:r.resin_kg)||0),0);
+    out.push({factory:f,item,unit:item==="Resin"?"kg":"sq ft at 1 mm",inw,entered,balance:inw-entered});
+  }));return out;
+}
+function autoUse(rows){
+  const m=rows.filter(r=>r.stage!=="Opening stock").reduce((a,r)=>a+sqmm(r),0);
+  return {veneer:m*(Number(DB.settings.veneer_factor)||1),resin:m/1000*(Number(DB.settings.resin_per_k)||0)};
+}
+const dispatchAmount=r=>r.rate==null||r.rate===""?null:(r.basis==="Per sq ft"?sqft(r)*Number(r.rate):sqmm(r)*Number(r.rate));
+function receivables(){
+  return DB.customers.map(c=>{
+    const inv=DB.dispatch.filter(r=>r.customer===c.name&&dispatchAmount(r)!=null).sort((a,b)=>a.date.localeCompare(b.date));
+    let paid=DB.collections.filter(r=>r.customer===c.name).reduce((a,r)=>a+Number(r.amount),0);
+    const billed=inv.reduce((a,r)=>a+dispatchAmount(r),0);let overdue=0,oldest=null;
+    inv.forEach(r=>{const a=dispatchAmount(r),use=Math.min(a,paid);paid-=use;const left=a-use,due=addDays(r.date,Number(c.credit_days)||0);if(left>0&&due<today()){overdue+=left;if(!oldest)oldest=due;}});
+    const received=DB.collections.filter(r=>r.customer===c.name).reduce((a,r)=>a+Number(r.amount),0);
+    return {c,billed,received,balance:billed-received,overdue,oldest,overLimit:c.credit_limit&&billed-received>c.credit_limit};
+  });
+}
+const unpriced=()=>DB.dispatch.filter(r=>dispatchAmount(r)==null);
+function lastWeek(){let d=addDays(today(),-1);while(new Date(d+"T00:00:00").getDay()!==6)d=addDays(d,-1);return {from:addDays(d,-5),to:d};}
+
+/* ---- pieces ---- */
+const tile=(n,l,s,hot)=>`<div class="tile ${hot?"hot":""}"><b>${esc(n)}</b><span>${esc(l)}</span>${s?`<small>${esc(s)}</small>`:""}</div>`;
+const panel=(t,b,c)=>`<section class="panel ${c||""}"><h2>${t}</h2>${b}</section>`;
+const tbl=(h,rows,empty)=>rows.length?`<div class="scroll"><table><thead><tr>${h.map(x=>{const n=x.endsWith("#");return `<th class="${n?"n":""}">${esc(n?x.slice(0,-1):x)}</th>`;}).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`:`<div class="none">${esc(empty||"Nothing here yet.")}</div>`;
+const factorySwitch=()=>`<div class="row" role="group" aria-label="Factory">${["All",...FACTORIES].map(f=>`<button class="btn sm ${S.factory===f?"on":""}" data-a="factory" data-v="${f}">${f==="All"?"Both factories":esc(f)}</button>`).join("")}</div>`;
+const head=(t,sub,right)=>`<div class="head"><div><h1>${esc(t)}</h1>${sub?`<div class="sub">${esc(sub)}</div>`:""}</div><div class="row">${right||""}</div></div>`;
+
+/* ---- screens ---- */
+const V={
+today(){
+  const T=today(),p=DB.production.filter(r=>r.date===T&&inF(r)&&r.stage!=="Opening stock"),dis=DB.dispatch.filter(r=>r.date===T&&inF(r)),inw=DB.inward.filter(r=>r.date===T&&inF(r));
+  const col=DB.collections.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0),pay=DB.payments.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0);
+  const lb=lastBackup(),dueBackup=!lb||lb<addDays(T,-7);
+  const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
+  return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+
+  (dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>r.item!=="Resin").reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(inr(col),"Collections today")}${tile(inr(pay),"Payments made today")}</div>`+
+  panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":"")+
+  (up.length?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Sheets#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
+},
+finished(){
+  const rows=finishedStock().filter(inF);
+  const tot=rows.reduce((a,r)=>({s:a.s+r.first,q:a.q+r.first*area(r.size),m:a.m+r.first*area(r.size)*r.thick,x:a.x+r.second}),{s:0,q:0,m:0,x:0});
+  return head("Finished stock","Worked out from production minus dispatch",factorySwitch())+
+  `<div class="tiles">${tile(num(tot.s),"Sheets in stock")}${tile(num(tot.q),"Sq ft")}${tile(num(tot.m),"Sq ft × mm")}${tile(num(tot.x),"Second-grade sheets")}</div>`+
+  panel("By factory, grade, thickness and size",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Sq ft × mm#","Second grade#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n"><b>${num(r.first)}</b></td><td class="n">${num(r.first*area(r.size))}</td><td class="n">${num(r.first*area(r.size)*r.thick)}</td><td class="n">${num(r.second)}</td></tr>`).concat(`<tr class="tot"><td colspan="4">Total</td><td class="n">${num(tot.s)}</td><td class="n">${num(tot.q)}</td><td class="n">${num(tot.m)}</td><td class="n">${num(tot.x)}</td></tr>`)));
+},
+raw(){
+  const rows=rawStock().filter(inF);
+  return head("Raw materials","Veneer in sq ft at 1 mm, resin in kg",factorySwitch())+panel("Balance by godown",tbl(["Factory","Material","Unit","Received#","Used#","Balance#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.item)}</td><td>${esc(r.unit)}</td><td class="n">${num(r.inw)}</td><td class="n">${num(r.entered)}</td><td class="n"><b>${num(r.balance)}</b></td></tr>`)));
+},
+production(){
+  const staff=!isAdmin(),rows=Api.rows("production").filter(inF).filter(r=>!staff||r.date>=addDays(today(),-6)).sort((a,b)=>b.date.localeCompare(a.date));
+  return head(staff?"Daily production":"Production",staff?"Enter today's report. Ask an admin to correct a saved entry.":"Every daily report, with who entered it",(staff?"":factorySwitch())+`<button class="btn pri" data-a="add" data-t="production">Add production</button>`)+
+  panel(staff?"Last 7 days":"Reports",tbl(["Date","Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#","Stage","Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td><td>${esc(r.stage)}</td><td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="production" data-id="${r.id}">Edit</button></td>`}</tr>`)));
+},
+dispatch(){
+  const staff=!isAdmin(),rows=Api.rows("dispatch").filter(inF).filter(r=>!staff||r.date>=addDays(today(),-6)).sort((a,b)=>b.date.localeCompare(a.date));
+  return head(staff?"Daily dispatch":"Dispatch",staff?"Enter what left the factory today. Ask an admin to correct a saved entry.":"By customer, grade, thickness and size",(staff?"":factorySwitch())+`<button class="btn pri" data-a="add" data-t="dispatch">Add dispatch</button>`)+
+  panel(staff?"Last 7 days":"Dispatches",tbl(["Date","Factory","Customer","Grade","Thickness","Size","Quality","Sheets#","Sq ft#","Vehicle","Challan",...(staff?[]:["Rate#","Amount#"]),"Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td>${esc(r.quality)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="nw">${esc(r.vehicle)}</td><td>${esc(r.challan)}</td>${staff?"":`<td class="n">${r.rate==null?'<span class="pill warn">Not set</span>':esc(r.rate)}</td><td class="n">${dispatchAmount(r)==null?"":inr(dispatchAmount(r))}</td>`}<td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Edit</button></td>`}</tr>`)));
+},
+inward(){
+  const rows=DB.inward.filter(inF).sort((a,b)=>b.date.localeCompare(a.date));
+  return head("Inward","Raw material received at each godown",factorySwitch()+`<button class="btn pri" data-a="add" data-t="inward">Add inward</button>`)+panel("Received",tbl(["Date","Factory","Material","Supplier","Quantity#","Thickness#","Base quantity#","Amount#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.item)}</td><td>${esc(r.supplier)}</td><td class="n">${num(r.qty)}</td><td class="n">${r.item==="Resin"?"":esc(r.mm)+" mm"}</td><td class="n">${r.item==="Resin"?num(r.qty)+" kg":num(Number(r.qty)*(Number(r.mm)||1))}</td><td class="n">${r.amount?inr(r.amount):""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="inward" data-id="${r.id}">Edit</button></td></tr>`)));
+},
+customers(){
+  const rec=receivables();
+  return head("Customers","Grouped by state",`<button class="btn pri" data-a="add" data-t="customers">Add customer</button>`)+STATES.map(st=>{const rows=rec.filter(x=>x.c.state===st);return panel(esc(st)+" · "+rows.length,tbl(["Customer","Type","Salesperson","Credit days#","Credit limit#","Billed#","Received#","Balance#","Overdue#",""],rows.map(x=>`<tr><td>${esc(x.c.name)}</td><td>${esc(x.c.type)}</td><td>${esc(x.c.salesperson)}</td><td class="n">${esc(x.c.credit_days)}</td><td class="n">${inr(x.c.credit_limit)}</td><td class="n">${inr(x.billed)}</td><td class="n">${inr(x.received)}</td><td class="n">${inr(x.balance)}</td><td class="n">${x.overdue?`<span class="pill crit">${inr(x.overdue)}</span>`:"—"}</td><td><button class="btn sm" data-a="edit" data-t="customers" data-id="${x.c.id}">Edit</button></td></tr>`),"No customers in this state yet."));}).join("");
+},
+money(){
+  const c=[...DB.collections].sort((a,b)=>b.date.localeCompare(a.date)),p=[...DB.payments].sort((a,b)=>b.date.localeCompare(a.date));
+  return head("Collections & payments","",`<button class="btn pri" data-a="add" data-t="collections">Add collection</button><button class="btn pri" data-a="add" data-t="payments">Add payment</button>`)+`<div class="grid2">`+
+  panel("Collections",tbl(["Date","Customer","Mode","Amount#","Entered by",""],c.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="collections" data-id="${r.id}">Edit</button></td></tr>`)))+
+  panel("Payments made",tbl(["Date","Paid to","Type","Amount#","Entered by",""],p.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.payee)}</td><td>${esc(r.category)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payments" data-id="${r.id}">Edit</button></td></tr>`)))+`</div>`;
+},
+reports(){
+  const rows=DB.factory_reports.filter(inF).sort((a,b)=>String(b.date).localeCompare(a.date)||String(a.factory).localeCompare(b.factory)),L=rows[0];
+  const v=n=>n==null?"":num(n);
+  return head("Daily summary","Each factory's daily report and running totals. This doesn't change sheet stock.",factorySwitch()+`<button class="btn pri" data-a="add" data-t="factory_reports">Add daily summary</button>`)+
+  (L?`<div class="sub" style="margin-bottom:8px">Latest: ${esc(L.factory)}, ${fmtD(L.date)}</div><div class="tiles">${tile(v(L.production_sheets),"Sheets produced",v(L.production_sqft)+" sq ft")}${tile(v(L.repair_sheets),"Sheets repaired")}${tile(v(L.dispatch_sheets),"Sheets dispatched",v(L.dispatch_sqft)+" sq ft")}${tile(v(L.month_production_sqft),"Month production","sq ft")}${tile(v(L.month_dispatch_sqft),"Month dispatch","sq ft")}</div>`:"")+
+  panel("Reports",tbl(["Date","Factory","Production#","Sq ft#","Repair#","Dispatch#","Sq ft#","Peeling cft#","Peeling sq ft#","Multi frames#","Multi sq ft#","Core dry sq ft#","Week production#","Week dispatch#","Month production#","Month dispatch#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td class="n">${v(r.production_sheets)}</td><td class="n">${v(r.production_sqft)}</td><td class="n">${v(r.repair_sheets)}</td><td class="n">${v(r.dispatch_sheets)}</td><td class="n">${v(r.dispatch_sqft)}</td><td class="n">${v(r.peeling_cft)}</td><td class="n">${v(r.peeling_sqft)}</td><td class="n">${v(r.multi_frames)}</td><td class="n">${v(r.multi_sqft)}</td><td class="n">${v(r.core_dry_sqft)}</td><td class="n">${v(r.week_production_sqft)}</td><td class="n">${v(r.week_dispatch_sqft)}</td><td class="n">${v(r.month_production_sqft)}</td><td class="n">${v(r.month_dispatch_sqft)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="factory_reports" data-id="${r.id}">Edit</button></td></tr>`),"No daily summaries yet."));
+},
+marketers(){
+  const rows=[...DB.marketers].sort((x,y)=>String(x.region).localeCompare(y.region));
+  return head("Marketers","Freelance marketers on commission",`<button class="btn pri" data-a="add" data-t="marketers">Add marketer</button>`)+panel("Marketers"+" · "+rows.length,tbl(["Region","Marketer","Commission %","Phone","Product","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.region)}</td><td>${esc(r.person)}</td><td>${esc(r.commission)}</td><td>${esc(r.phone)}</td><td>${esc(r.product)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="marketers" data-id="${r.id}">Edit</button></td></tr>`),"No marketers yet."));
+},
+makers(){
+  const rows=[...DB.makers].sort((x,y)=>String(x.name).localeCompare(y.name));
+  return head("Machine makers","Companies making block and brick machines",`<button class="btn pri" data-a="add" data-t="makers">Add machine maker</button>`)+panel("Machine makers"+" · "+rows.length,tbl(["Company","Contact","Phone","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.contact)}</td><td>${esc(r.phone)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="makers" data-id="${r.id}">Edit</button></td></tr>`),"No machine makers yet."));
+},
+machines(){
+  const rows=[...DB.machines].sort((x,y)=>String(x.maker).localeCompare(y.maker));
+  return head("Machine models & pallets","Each model and the pallet size it needs",`<button class="btn pri" data-a="add" data-t="machines">Add machine model</button>`)+panel("Machine models & pallets"+" · "+rows.length,tbl(["Company","Model","Makes","Pallet size","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.maker)}</td><td>${esc(r.model)}</td><td>${esc(r.use)}</td><td>${esc(r.pallet)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="machines" data-id="${r.id}">Edit</button></td></tr>`),"No machine models yet. Add one, or upload a list."));
+},
+pallets(){
+  const rows=[...DB.pallet_sizes].sort((x,y)=>String(x.size).localeCompare(y.size));
+  return head("Pallet sizes","Sizes and types of pallet",`<button class="btn pri" data-a="add" data-t="pallet_sizes">Add pallet size</button>`)+panel("Pallet sizes"+" · "+rows.length,tbl(["Size","Type","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.size)}</td><td>${esc(r.type)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="pallet_sizes" data-id="${r.id}">Edit</button></td></tr>`),"No pallet sizes yet."));
+},
+followups(){
+  const rows=[...DB.followups].sort((x,y)=>(x.status==="Done")-(y.status==="Done")||String(x.due||"9").localeCompare(y.due||"9"));
+  return head("Follow-ups","Open follow-ups come first",`<button class="btn pri" data-a="add" data-t="followups">Add follow-up</button>`)+panel("Follow-ups"+" · "+rows.length,tbl(["Follow up on","Party","About","Who","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.due)}${r.status!=="Done"&&r.due&&r.due<today()?' <span class="pill crit">Late</span>':""}</td><td>${esc(r.party)}</td><td>${esc(r.about)}</td><td>${esc(r.owner)}</td><td>${esc(r.status)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="followups" data-id="${r.id}">Edit</button></td></tr>`),"No follow-ups yet."));
+},
+remarks(){
+  const rows=[...DB.remarks].sort((x,y)=>String(y.date||"").localeCompare(x.date||""));
+  return head("Remarks","Notes and discussions",`<button class="btn pri" data-a="add" data-t="remarks">Add remark</button>`)+panel("Remarks"+" · "+rows.length,tbl(["Date","About","Remark","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.about)}</td><td>${esc(r.text)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="remarks" data-id="${r.id}">Edit</button></td></tr>`),"No remarks yet."));
+},
+vendors(){
+  const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
+  return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
+},
+payables(){
+  const T=today(),rows=[...DB.payables].sort((x,y)=>(x.status==="Paid")-(y.status==="Paid")||String(x.due||"9").localeCompare(y.due||"9")),open=rows.filter(r=>r.status!=="Paid"),late=open.filter(r=>r.due&&r.due<T),sum=a=>a.reduce((t,r)=>t+Number(r.amount),0);
+  return head("Pending payments","What Akosys owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td><span class="pill ${r.status==="Paid"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
+},
+documents(){return head("Upload documents","Send a photo, PDF or sheet for Claude to read")+'<div id="docsHost"></div>';},
+check(){
+  const from=addDays(today(),-6),rows=FACTORIES.filter(f=>S.factory==="All"||f===S.factory).map(f=>{
+    const p=DB.production.filter(r=>r.factory===f&&r.date>=from);const au=autoUse(p);
+    const ev=p.reduce((a,r)=>a+(Number(r.core_used)||0)+(Number(r.face_used)||0),0),er=p.reduce((a,r)=>a+(Number(r.resin_kg)||0),0);
+    return {f,au,ev,er};
+  });
+  const flag=(a,b)=>{const pct=a?Math.abs(b-a)/a*100:0;return `<span class="pill ${pct>5?"crit":"ok"}">${pct>5?num(pct)+"% apart":"Matches"}</span>`;};
+  const raw=rawStock();
+  const counts=[...DB.counts].sort((a,b)=>b.date.localeCompare(a.date));
+  return head("Stock check","Compares the automatic figure with what staff entered",factorySwitch()+`<button class="btn pri" data-a="add" data-t="counts">Add godown count</button>`)+
+  panel("Raw material used, last 7 days",tbl(["Factory","Material","Automatic#","Entered by staff#","Result"],rows.flatMap(x=>[`<tr><td>${esc(x.f)}</td><td>Veneer (sq ft at 1 mm)</td><td class="n">${num(x.au.veneer)}</td><td class="n">${num(x.ev)}</td><td>${flag(x.au.veneer,x.ev)}</td></tr>`,`<tr><td>${esc(x.f)}</td><td>Resin (kg)</td><td class="n">${num(x.au.resin)}</td><td class="n">${num(x.er)}</td><td>${flag(x.au.resin,x.er)}</td></tr>`])))+
+  panel("Godown counts against book stock",tbl(["Date","Factory","Material","Counted#","Book balance now#","Difference#","Entered by"],counts.map(r=>{const b=raw.find(x=>x.factory===r.factory&&x.item===r.item),d=Number(r.qty)-(b?b.balance:0);return `<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.item)}</td><td class="n">${num(r.qty)}</td><td class="n">${num(b&&b.balance)}</td><td class="n">${d?`<span class="pill warn">${num(d)}</span>`:"0"}</td><td class="nw">${esc(r.by)}</td></tr>`;}),"Add a godown count to compare it with the book balance."));
+},
+weekly(){const w=lastWeek();return head("Weekly report",fmtD(w.from)+" to "+fmtD(w.to)+", opens automatically on Mondays")+weeklyHTML();},
+history(){
+  return head("Who entered what","Every change made in the app")+panel("Changes",tbl(["When","Person","Access","Action","Details"],DB.log.slice(0,200).map(l=>`<tr><td class="nw">${esc(new Date(l.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}))}</td><td class="nw">${esc(l.user)}</td><td>${esc(ROLE_LABEL[l.role])}</td><td>${esc(l.action)}</td><td>${esc(l.summary)}</td></tr>`),"Changes will appear here as soon as someone saves an entry."))+``;
+},
+settings(){
+  return head("Settings","Figures used by the automatic calculation")+panel("Automatic raw material use",`<form class="form" id="setForm" style="padding:14px"><label>Veneer used per 1 sq ft × mm of plywood<input id="s-v" type="number" step="any" min="0" value="${esc(DB.settings.veneer_factor)}"></label><label>Resin kg per 1,000 sq ft × mm<input id="s-r" type="number" step="any" min="0" value="${esc(DB.settings.resin_per_k)}"></label><div class="row" style="grid-column:1/-1"><button class="btn pri">Save</button></div></form><div class="note">Replace these starting figures with the factory's real numbers, or the stock check will flag false differences.</div>`)+panel("Backup",`<div style="padding:14px" class="row"><button class="btn pri" data-a="backup">Download backup</button><span class="sub">${esc(lastBackup()?"Last downloaded on this device: "+fmtD(lastBackup()):"Not downloaded on this device yet")}</span></div><div class="note">The file contains prices and financial data, so keep it somewhere private. Download one every week.</div>`);
+}
+};
+function lastBackup(){try{return localStorage.getItem("akosys-last-backup")||"";}catch(e){return "";}}
+function downloadBackup(){
+  const {log,...data}=DB,blob=new Blob([JSON.stringify({savedAt:new Date().toISOString(),savedBy:S.user.name,data,history:log},null,1)],{type:"application/json"});
+  const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="akosys-backup-"+today()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
+  try{localStorage.setItem("akosys-last-backup",today());}catch(e){}
+  render();
+}
+function weeklyHTML(){
+  const w=lastWeek(),inW=r=>r.date>=w.from&&r.date<=w.to;
+  const p=DB.production.filter(r=>inW(r)&&r.stage!=="Opening stock"),g={};
+  p.forEach(r=>{const k=[r.factory,r.grade,r.thick,r.size].join("|");g[k]=g[k]||{...r,sheets:0,second:0,rejected:0};g[k].sheets+=Number(r.sheets);g[k].second+=Number(r.second)||0;g[k].rejected+=Number(r.rejected)||0;});
+  const rows=Object.values(g).sort((a,b)=>a.factory.localeCompare(b.factory)||a.grade.localeCompare(b.grade));
+  const dis=DB.dispatch.filter(inW),billed=dis.reduce((a,r)=>a+(dispatchAmount(r)||0),0),col=DB.collections.filter(inW).reduce((a,r)=>a+Number(r.amount),0),paid=DB.payments.filter(inW).reduce((a,r)=>a+Number(r.amount),0);
+  const rec=receivables(),out=rec.reduce((a,x)=>a+x.balance,0),od=rec.reduce((a,x)=>a+x.overdue,0);
+  const latest=FACTORIES.map(f=>DB.factory_reports.filter(r=>r.factory===f).sort((x,y)=>String(y.date).localeCompare(x.date))[0]).filter(Boolean),v=n=>n==null?"—":num(n);
+  const reported=latest.length?panel("Weekly and monthly totals reported by each factory",tbl(["Factory","Report date","Week production (sq ft)#","Week dispatch (sq ft)#","Month production (sq ft)#","Month dispatch (sq ft)#"],latest.map(r=>`<tr><td>${esc(r.factory)}</td><td class="nw">${fmtD(r.date)}</td><td class="n"><b>${v(r.week_production_sqft)}</b></td><td class="n"><b>${v(r.week_dispatch_sqft)}</b></td><td class="n">${v(r.month_production_sqft)}</td><td class="n">${v(r.month_dispatch_sqft)}</td></tr>`))):"";
+  const detail=p.length||dis.length?"":'<p class="sub" style="margin:0 0 10px">The figures below add up detailed production, dispatch and money entries. None have been entered for this period yet.</p>';
+  return reported+detail+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched")}${tile(inr(billed),"Sales billed")}${tile(inr(col),"Collections")}${tile(inr(paid),"Payments made")}${tile(inr(col-paid),"Net cash")}${tile(inr(out),"Total outstanding")}${tile(inr(od),"Overdue",null,od>0)}</div>`+
+  panel("Production, Monday to Saturday",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td></tr>`),"No production in those days."));
+}
+
+/* ---- forms ---- */
+const custNames=()=>Api.rows("customers").map(r=>r.name);
+const FORMS={
+  marketers:{one:"marketer",f:()=>[{k:"region",l:"Region",req:1},{k:"person",l:"Marketer"},{k:"commission",l:"Commission %",t:"number"},{k:"phone",l:"Phone"},{k:"product",l:"Product"},{k:"remarks",l:"Remarks"}]},
+  makers:{one:"machine maker",f:()=>[{k:"name",l:"Company",req:1},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"remarks",l:"Remarks"}]},
+  machines:{one:"machine model",f:()=>[{k:"maker",l:"Company",o:DB.makers.map(r=>r.name)},{k:"model",l:"Machine model",req:1},{k:"use",l:"Makes (block, brick or paver)"},{k:"pallet",l:"Pallet size"},{k:"remarks",l:"Remarks"}]},
+  pallet_sizes:{one:"pallet size",f:()=>[{k:"size",l:"Size (L x W x H mm)",req:1},{k:"type",l:"Type"},{k:"remarks",l:"Remarks"}]},
+  followups:{one:"follow-up",f:()=>[{k:"due",l:"Follow up on",t:"date"},{k:"party",l:"Party"},{k:"about",l:"About",req:1},{k:"owner",l:"Who follows up"},{k:"status",l:"Status",o:["Open","Done"]},{k:"remarks",l:"Remarks"}]},
+  remarks:{one:"remark",f:()=>[{k:"date",l:"Date",t:"date"},{k:"about",l:"About"},{k:"text",l:"Remark",req:1}]},
+  factory_reports:{one:"daily summary",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"production_sheets",l:"Production (sheets)",t:"number"},{k:"production_sqft",l:"Production (sq ft)",t:"number"},{k:"repair_sheets",l:"Repair (sheets)",t:"number"},{k:"dispatch_sheets",l:"Dispatch (sheets)",t:"number"},{k:"dispatch_sqft",l:"Dispatch (sq ft)",t:"number"},{k:"peeling_cft",l:"Peeling (cft)",t:"number"},{k:"peeling_sqft",l:"Peeling (sq ft)",t:"number"},{k:"multi_frames",l:"Multi (frames)",t:"number"},{k:"multi_sqft",l:"Multi (sq ft)",t:"number"},{k:"core_dry_sqft",l:"Core dry (sq ft)",t:"number"},{k:"week_production_sqft",l:"Week production (sq ft)",t:"number"},{k:"week_dispatch_sqft",l:"Week dispatch (sq ft)",t:"number"},{k:"month_production_sqft",l:"Month production (sq ft)",t:"number"},{k:"month_dispatch_sqft",l:"Month dispatch (sq ft)",t:"number"}]},
+  vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
+  payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
+  production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good sheets",t:"number",req:1},{k:"second",l:"Second-grade sheets",t:"number"},{k:"rejected",l:"Rejected sheets",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
+  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Sheets",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
+  inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"supplier",l:"Supplier"},{k:"qty",l:"Sq ft (kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"}]},
+  customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Salesperson"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
+  collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
+  payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to",req:1},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
+  counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
+};
+const formFields=t=>FORMS[t].f().filter(f=>!f.admin||isAdmin());
+function renderModal(){
+  const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
+  if(M.report){L.innerHTML=`<div class="wrap" data-a="closebg"><div class="modal wide" data-stop="1" role="dialog" aria-modal="true" aria-label="Weekly report"><h2>Monday report</h2>${weeklyHTML()}<div class="actions"><button class="btn pri" data-a="close">Close</button></div></div></div>`;return;}
+  const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
+  const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.t==="date"?today():""),id="f-"+f.k;
+    if(f.o)return `<select id="${id}">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    return `<input id="${id}" type="${f.t||"text"}" ${f.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${esc(v)}" ${f.req?"required":""} autocomplete="off">`;};
+  L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}"><h2>${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}</h2>
+  <div class="form">${formFields(M.t).map(f=>`<label>${esc(f.l)}${f.req?" *":""}${ctl(f)}</label>`).join("")}</div><div class="calc" id="calc"></div><div class="err" id="ferr" role="alert"></div>
+  <div class="actions"><button class="btn pri">Save</button><button type="button" class="btn" data-a="close">Cancel</button>${M.id&&isAdmin()?`<button type="button" class="btn dang" data-a="del">Delete</button>`:""}</div></form></div>`;
+  liveCalc();const first=L.querySelector("input,select");if(first)first.focus();
+}
+function liveCalc(){
+  const c=$("calc");if(!c||!S.modal||!["production","dispatch"].includes(S.modal.t))return;
+  const r={sheets:$("f-sheets").value,size:$("f-size").value,thick:$("f-thick").value};
+  c.textContent=Number(r.sheets)?`${num(r.sheets)} sheets × ${area(r.size)} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"";
+}
+async function saveForm(){
+  const M=S.modal,rec=M.id?{id:M.id}:{},btn=document.querySelector("#recForm .btn.pri");
+  formFields(M.t).forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
+  if(M.t==="dispatch"&&!rec.customer){$("ferr").textContent="Add a customer before entering a dispatch.";return;}
+  btn.disabled=true;btn.textContent="Saving…";
+  try{
+    if(M.t==="dispatch"&&!M.id&&!M.stockOK){
+      const {data,error}=await sb.rpc("sheets_available",{p_factory:rec.factory,p_grade:rec.grade,p_thick:rec.thick,p_size:rec.size,p_quality:rec.quality});
+      if(error)throw error;
+      if(Number(rec.sheets)>Number(data)){M.stockOK=true;$("ferr").textContent=`The records show only ${num(data)} of these sheets at ${rec.factory}. Check the entry, or press Save again to record it anyway.`;btn.disabled=false;btn.textContent="Save";return;}
+    }
+    await Api.save(M.t,rec);S.modal=null;renderModal();render();
+  }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
+}
+
+/* ---- shell ---- */
+function render(){
+  const R=$("root");
+  if(!sb){R.innerHTML='<div class="login"><form><h1>Akosys Pvt</h1><div class="err">This app isn\'t connected to its database yet. Add the project address and key to config.js.</div></form></div>';return;}
+  if(S.loading){R.innerHTML='<div class="login"><div class="sub">Loading…</div></div>';return;}
+  if(!S.user){R.innerHTML=`<div class="login"><form id="loginForm"><div><h1>Akosys Pvt</h1><div class="sub">Factory app · Part of Saleem OS</div></div><label>Your name or email<input id="lName" autocomplete="username" autocapitalize="none" value="${esc(S.lastName||"")}" required></label><label>Your PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><div class="err" id="lErr" role="alert">${esc(S.err)}</div><button class="btn pri">Sign in</button></form></div>`;return;}
+  const nav=NAV[S.user.role],od=receivables().filter(x=>x.overdue>0).length;
+  if(!nav.some(n=>n[0]===S.view))S.view=nav[0][0];
+  const main=V[S.view]();
+  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOSYS PVT</b><span>Part of Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
+}
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-a]");if(!el)return;const a=el.dataset.a;
+  if(a==="closebg"){if(!e.target.closest("[data-stop]")){S.modal=null;renderModal();}return;}
+  if(a==="view"){S.view=el.dataset.v;render();window.scrollTo(0,0);}
+  else if(a==="factory"){S.factory=el.dataset.v;render();}
+  else if(a==="logout"){signOut();}
+  else if(a==="backup"){downloadBackup();}
+  else if(a==="add"){S.modal={t:el.dataset.t};renderModal();}
+  else if(a==="edit"){S.modal={t:el.dataset.t,id:el.dataset.id};renderModal();}
+  else if(a==="close"){S.modal=null;renderModal();}
+  else if(a==="del"){el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
+  else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
+});
+document.addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("f-"))liveCalc();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;renderModal();}});
+document.addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(e.target.id==="loginForm"){
+    const name=$("lName").value.trim(),slug=name.toLowerCase().replace(/[^a-z0-9]/g,""),btn=e.target.querySelector("button");
+    S.lastName=name;btn.disabled=true;btn.textContent="Checking…";
+    const {data,error}=await sb.auth.signInWithPassword({email:name.includes("@")?name.toLowerCase():slug+"@"+(CFG.loginDomain||"staff.woodlandply.com"),password:$("lPin").value});
+    if(error){S.err=/fetch|network/i.test(error.message)?"Couldn't reach the server. Check the internet.":"That name and PIN don't match. Try again, or ask an admin.";render();return;}
+    try{if(await startSession(data.user.id)){S.err="";render();mondayReport();}else render();}catch(err){S.err="Signed in, but your data couldn't load. Try again.";S.user=null;render();}
+  }
+  if(e.target.id==="recForm")saveForm();
+  if(e.target.id==="setForm"){
+    const {error}=await sb.from("settings").update({veneer_factor:Number($("s-v").value)||1,resin_per_k:Number($("s-r").value)||0}).eq("id",1);
+    if(error){S.banner=friendly(error);render();return;}
+    refresh();
+  }
+});
+async function signOut(){
+  if(channel){sb.removeChannel(channel);channel=null;}
+  await sb.auth.signOut();S.user=null;S.err="";S.modal=null;DB=EMPTY();renderModal();render();
+}
+function mondayReport(){
+  if(!S.user||S.user.role!=="admin"||new Date().getDay()!==1)return;
+  const key="akosys-report-"+today();
+  try{if(localStorage.getItem(key))return;localStorage.setItem(key,"1");}catch(e){}
+  S.modal={report:true};renderModal();
+}
+window.addEventListener("focus",()=>{if(S.user)refresh();});
+window.addEventListener("online",()=>{if(S.user)refresh();});
+if("serviceWorker" in navigator)navigator.serviceWorker.register("../sw.js").catch(()=>{});
+(async function boot(){
+  render();
+  if(!sb)return;
+  try{
+    const {data}=await sb.auth.getSession();
+    if(data.session){await startSession(data.session.user.id);S.loading=false;render();mondayReport();return;}
+  }catch(e){S.err="Couldn't reach the server. Check the internet, then sign in.";S.user=null;}
+  S.loading=false;render();
+})();
+</script>
+</body></html>

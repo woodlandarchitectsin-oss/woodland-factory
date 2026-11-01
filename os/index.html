@@ -180,7 +180,7 @@ td.w{min-width:170px}td.act{white-space:nowrap;text-align:right}
 <script>
 const DEFAULTS=[
   {id:"woodland",name:"Woodland Ply",note:"Plywood · Woodland and KTR factories",url:"../index.html"},
-  {id:"akosys",name:"Akosys Pvt",note:"Plywood & pallets",full:true},
+  {id:"akosys",name:"Akosys Pvt",note:"Plywood & pallets",full:true,url:"../akosys/index.html"},
   {id:"asr",name:"ASR Pvt Ltd",note:"Resins"},
   {id:"tgf",name:"TGF Saudi",note:""},
   {id:"goldenasia",name:"Golden Asia",note:"Palm · Dubai"},
@@ -361,7 +361,7 @@ function render(){
   if(!S.loaded&&!S.note){m.innerHTML='<p class="sub">Loading your records…</p>';return;}
   if(!S.biz){m.innerHTML=note+renderHome();return;}
   const b=bizOf(S.biz),tabs=b.full?FULL_TABS:BASIC_TABS;
-  if(b.url){if(!m.querySelector("iframe"))m.innerHTML=`<iframe src="${esc(b.url)}" title="${esc(b.name)}"></iframe>`;return;m.innerHTML=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)}</div></div></div><section class="panel"><h2>Woodland Ply has its own app</h2><div class="none">Production, stock, dispatch, customers and money are kept in the Woodland app, with separate logins. Its figures don't appear in Saleem OS yet.</div><div style="padding:0 14px 16px"><a class="btn pri" style="display:inline-block;text-decoration:none" href="${esc(b.url)}" target="_blank" rel="noopener">Open Woodland app</a></div></section>`;return;}
+  if(b.url){{const fr=m.querySelector("iframe");if(!fr||fr.getAttribute("src")!==b.url)m.innerHTML=`<iframe src="${esc(b.url)}" title="${esc(b.name)}"></iframe>`;}return;m.innerHTML=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)}</div></div></div><section class="panel"><h2>Woodland Ply has its own app</h2><div class="none">Production, stock, dispatch, customers and money are kept in the Woodland app, with separate logins. Its figures don't appear in Saleem OS yet.</div><div style="padding:0 14px 16px"><a class="btn pri" style="display:inline-block;text-decoration:none" href="${esc(b.url)}" target="_blank" rel="noopener">Open Woodland app</a></div></section>`;return;}
   if(S.tab!=="overview"&&!tabs.includes(S.tab))S.tab="overview";
   let h=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)||"Business details to be added"}</div></div>${S.readOnly?"":'<button class="btn" data-a="editbiz">Edit details</button>'}</div>
   <div class="tabs" role="tablist"><button role="tab" aria-selected="${S.tab==="overview"}" data-a="tab" data-v="overview" class="${S.tab==="overview"?"on":""}">Overview</button>${tabs.map(k=>`<button role="tab" aria-selected="${S.tab===k}" data-a="tab" data-v="${k}" class="${S.tab===k?"on":""}">${esc(KINDS[k].tab)}</button>`).join("")}</div>`;
