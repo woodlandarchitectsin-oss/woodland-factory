@@ -3,11 +3,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1d3328">
 <meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Akosys</title>
+<title>Akolite Industrial Systems</title>
 <link rel="icon" href="../icon-192.png"><link rel="apple-touch-icon" href="../icon-192.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
-/* Layout: factory register. Rail of departments, a factory switch, sheets of figures measured in sheets, sq ft and sq ft x mm */
+/* Layout: factory register. Rail of departments, a factory switch, pieces of figures measured in pieces, sq ft and sq ft x mm */
 :root{
   --bg:#eff1ec;--surface:#fff;--surface2:#f4f5f1;--line:#d7dbd0;--fg:#1b241d;--muted:#5a665c;
   --rail:#1d3328;--rail-fg:#dfe8e0;--rail-muted:#94a998;--rail-on:#2c4a3a;--grain:#d3a35a;
@@ -107,17 +107,18 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 <script src="../config.js"></script>
 <script src="../docs.js"></script>
 <script>
-const FACTORIES=["Akosys"];
-const GRADES=["Pallets","TF Ply","CHQ Ply"];
+const FACTORIES=["Akolite"];
+const GRADES=["Composite Production Pallets","Chequered Plywood","Truck-Flooring Panels","High-Density Plywood"];
 const THICK=[4,6,8,9,12,16,18,19,25];
 const SIZES=["8x4","8x3","7x4","7x3","6x4","6x3"];
-const RAW=["Core veneer","Face veneer","Resin"];
+const RAW=["Core veneer","Face veneer","Resin","Craft paper","Film"];
+const RAW_UNIT={"Core veneer":"sq ft at 1 mm","Face veneer":"sq ft at 1 mm","Resin":"kg","Craft paper":"as entered","Film":"as entered"};
 const STATES=["Rajasthan","Chhattisgarh","Bihar","Odisha","Kerala","Karnataka","Tamil Nadu","Andhra Pradesh","Other"];
 const CTYPES=["Dealer","Contractor","Builder","Carpenter","Boat builder","Direct buyer","Other"];
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Daily summary"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -126,16 +127,17 @@ const fmtD=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=n=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:1}).format(n||0);
 const inr=n=>(n<0?"-":"")+"₹"+new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}).format(Math.abs(n||0));
-const area=s=>{const[a,b]=String(s).split("x").map(Number);return a*b;};
+/* Plywood sizes are in feet (8x4). Pallet sizes are in mm (900x550). */
+const area=s=>{const[a,b]=String(s).toLowerCase().split(/[x×*]/).map(Number);if(!a||!b)return 0;return a>100?a*b/92903:a*b;};
 const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
+const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
-/* Same screens as Woodland, reading Akosys's own tables. */
+/* Same screens as Woodland, reading Akolite's own tables. */
 const sb=sb0&&{auth:sb0.auth,storage:sb0.storage,channel:n=>sb0.channel(n),removeChannel:c=>sb0.removeChannel(c),from:t=>sb0.from(t==="profiles"||t==="documents"?t:"ak_"+t),rpc:(f,a)=>sb0.rpc("ak_"+f,a)};
 
 const S={user:null,view:"today",factory:"All",modal:null,err:"",loading:true,banner:""};
@@ -159,12 +161,12 @@ async function loadData(){
     const pm={};prices.forEach(p=>{pm[p.id]=p;});
     d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
     d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
-    for(const t of ["marketers","makers","machines","pallet_sizes","followups","remarks"])d[t]=(await fetchAll(t)).map(stampBy);
+    for(const t of ["orders","marketers","makers","machines","pallet_sizes","followups","remarks"])d[t]=(await fetchAll(t)).map(stampBy);
     d.factory_reports=(await fetchAll("factory_reports")).map(stampBy);d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
     if(set[0])d.settings=set[0];
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
-  }else if(role==="production"){d.production=(await fetchAll("production")).map(stampBy);}
+  }else if(role==="production"){d.production=(await fetchAll("production")).map(stampBy);d.pallet_sizes=await fetchAll("pallet_sizes");}
   else{
     d.dispatch=(await fetchAll("dispatch")).map(stampBy);
     const {data,error}=await sb.rpc("customer_names");if(error)throw error;d.customers=data;
@@ -215,7 +217,7 @@ function listen(){
 async function startSession(uid){
   const {data,error}=await sb.from("profiles").select("name,ak_role,active").eq("id",uid).maybeSingle();
   if(error)throw error;
-  if(!data||!data.active||!data.ak_role){S.err="This login doesn't have Akosys access yet. Ask an admin to set it up.";S.user=null;await sb.auth.signOut();return false;}
+  if(!data||!data.active||!data.ak_role){S.err="This login doesn't have Akolite access yet. Ask an admin to set it up.";S.user=null;await sb.auth.signOut();return false;}
   data.role=data.ak_role;
   S.user=data;S.view=NAV[data.role][0][0];
   await loadData();listen();
@@ -223,18 +225,19 @@ async function startSession(uid){
 }
 
 function summary(t,r){
-  if(t==="production"||t==="dispatch")return [r.factory,r.customer,r.grade,r.thick+" mm",r.size,num(r.sheets)+" sheets"].filter(Boolean).join(" · ");
+  if(t==="production"||t==="dispatch")return [r.factory,r.customer,r.grade,r.thick+" mm",r.size,num(r.sheets)+" pieces"].filter(Boolean).join(" · ");
   if(t==="inward")return [r.factory,r.item,num(r.qty)].join(" · ");
   if(t==="customers")return r.name;
   if(t==="collections")return r.customer+" · "+inr(r.amount);
   if(t==="payments")return r.payee+" · "+inr(r.amount);
+  if(t==="orders")return r.party+" · "+(r.status||"")+(r.qty?" · "+num(r.qty)+" pieces":"");
   if(t==="marketers")return r.region+" · "+(r.person||"");
   if(t==="makers")return r.name;
   if(t==="machines")return r.maker+" · "+r.model;
   if(t==="pallet_sizes")return r.size;
   if(t==="followups")return r.about;
   if(t==="remarks")return r.text;
-  if(t==="factory_reports")return r.factory+" · "+fmtD(r.date)+" daily summary";
+  if(t==="factory_reports")return fmtD(r.date)+" production report";
   if(t==="vendors")return r.name;
   if(t==="payables")return r.vendor+" · "+inr(r.amount);
   if(t==="documents")return r.name+" · "+r.area+" · "+r.status;
@@ -252,10 +255,10 @@ function finishedStock(){
 }
 function rawStock(){
   const out=[];FACTORIES.forEach(f=>RAW.forEach(item=>{
-    const inw=DB.inward.filter(r=>r.factory===f&&r.item===item).reduce((a,r)=>a+(item==="Resin"?Number(r.qty):Number(r.qty)*(Number(r.mm)||1)),0);
+    const inw=DB.inward.filter(r=>r.factory===f&&r.item===item).reduce((a,r)=>a+(!/veneer/i.test(item)?Number(r.qty):Number(r.qty)*(Number(r.mm)||1)),0);
     const p=DB.production.filter(r=>r.factory===f);
     const entered=p.reduce((a,r)=>a+(Number(item==="Core veneer"?r.core_used:item==="Face veneer"?r.face_used:r.resin_kg)||0),0);
-    out.push({factory:f,item,unit:item==="Resin"?"kg":"sq ft at 1 mm",inw,entered,balance:inw-entered});
+    out.push({factory:f,item,unit:RAW_UNIT[item],inw,entered,balance:inw-entered});
   }));return out;
 }
 function autoUse(rows){
@@ -283,24 +286,37 @@ const tbl=(h,rows,empty)=>rows.length?`<div class="scroll"><table><thead><tr>${h
 const factorySwitch=()=>`<div class="row" role="group" aria-label="Factory">${["All",...FACTORIES].map(f=>`<button class="btn sm ${S.factory===f?"on":""}" data-a="factory" data-v="${f}">${f==="All"?"Both factories":esc(f)}</button>`).join("")}</div>`;
 const head=(t,sub,right)=>`<div class="head"><div><h1>${esc(t)}</h1>${sub?`<div class="sub">${esc(sub)}</div>`:""}</div><div class="row">${right||""}</div></div>`;
 
+/* ---- orders: 21-day lead time, full payment before dispatch, commission after payment, repeat reminder after 2 years ---- */
+const orderDue=r=>r.confirm_date?addDays(r.confirm_date,21):null;
+const orderBalance=r=>r.value==null?null:Number(r.value)-Number(r.received||0);
+const fullyPaid=r=>r.value!=null&&Number(r.value)>0&&orderBalance(r)<=0;
+const advanceDue=r=>r.value==null?null:Math.max(0,Number(r.value)*.3-Number(r.received||0));
+const commissionOf=r=>(Number(r.qty)||0)*(Number(r.commission_rate)||0);
+const addYears=(iso,n)=>{const d=new Date(iso+"T00:00:00");d.setFullYear(d.getFullYear()+n);return d.toLocaleDateString("en-CA");};
+const repeatOn=r=>r.dispatched?addYears(r.dispatched,2):null;
+const orderLate=r=>r.status==="Closed"&&!r.dispatched&&orderDue(r)&&orderDue(r)<today();
+const repeatDue=r=>repeatOn(r)&&repeatOn(r)<=today();
+const commissionDue=r=>fullyPaid(r)&&r.commission_paid!=="Yes"&&commissionOf(r)>0;
+
 /* ---- screens ---- */
 const V={
 today(){
   const T=today(),p=DB.production.filter(r=>r.date===T&&inF(r)&&r.stage!=="Opening stock"),dis=DB.dispatch.filter(r=>r.date===T&&inF(r)),inw=DB.inward.filter(r=>r.date===T&&inF(r));
   const col=DB.collections.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0),pay=DB.payments.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0);
   const lb=lastBackup(),dueBackup=!lb||lb<addDays(T,-7);
+  const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),comO=DB.orders.filter(commissionDue),mo=T.slice(0,7),openDue=!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+
-  (dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>r.item!=="Resin").reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(inr(col),"Collections today")}${tile(inr(pay),"Payments made today")}</div>`+
+  (openDue?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">This month's opening stock hasn't been entered. It's due on the 1st.</div>`:"")+(lateO.length||repO.length||comO.length?`<div class="tiles">${tile(lateO.length,"Late orders",null,lateO.length>0)}${tile(repO.length,"Repeat orders due")}${tile(inr(comO.reduce((a,r)=>a+commissionOf(r),0)),"Commission to pay")}</div>`:"")+(dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>/veneer/i.test(r.item)).reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(inr(col),"Collections today")}${tile(inr(pay),"Payments made today")}</div>`+
   panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":"")+
-  (up.length?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Sheets#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
+  (up.length?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Pieces#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
 },
 finished(){
   const rows=finishedStock().filter(inF);
   const tot=rows.reduce((a,r)=>({s:a.s+r.first,q:a.q+r.first*area(r.size),m:a.m+r.first*area(r.size)*r.thick,x:a.x+r.second}),{s:0,q:0,m:0,x:0});
   return head("Finished stock","Worked out from production minus dispatch",factorySwitch())+
-  `<div class="tiles">${tile(num(tot.s),"Sheets in stock")}${tile(num(tot.q),"Sq ft")}${tile(num(tot.m),"Sq ft × mm")}${tile(num(tot.x),"Second-grade sheets")}</div>`+
-  panel("By factory, grade, thickness and size",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Sq ft × mm#","Second grade#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n"><b>${num(r.first)}</b></td><td class="n">${num(r.first*area(r.size))}</td><td class="n">${num(r.first*area(r.size)*r.thick)}</td><td class="n">${num(r.second)}</td></tr>`).concat(`<tr class="tot"><td colspan="4">Total</td><td class="n">${num(tot.s)}</td><td class="n">${num(tot.q)}</td><td class="n">${num(tot.m)}</td><td class="n">${num(tot.x)}</td></tr>`)));
+  `<div class="tiles">${tile(num(tot.s),"Pieces in stock")}${tile(num(tot.q),"Sq ft")}${tile(num(tot.m),"Sq ft × mm")}${tile(num(tot.x),"Second-grade pieces")}</div>`+
+  panel("By factory, grade, thickness and size",tbl(["Factory","Grade","Thickness","Size","Pieces#","Sq ft#","Sq ft × mm#","Second grade#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n"><b>${num(r.first)}</b></td><td class="n">${num(r.first*area(r.size))}</td><td class="n">${num(r.first*area(r.size)*r.thick)}</td><td class="n">${num(r.second)}</td></tr>`).concat(`<tr class="tot"><td colspan="4">Total</td><td class="n">${num(tot.s)}</td><td class="n">${num(tot.q)}</td><td class="n">${num(tot.m)}</td><td class="n">${num(tot.x)}</td></tr>`)));
 },
 raw(){
   const rows=rawStock().filter(inF);
@@ -309,20 +325,20 @@ raw(){
 production(){
   const staff=!isAdmin(),rows=Api.rows("production").filter(inF).filter(r=>!staff||r.date>=addDays(today(),-6)).sort((a,b)=>b.date.localeCompare(a.date));
   return head(staff?"Daily production":"Production",staff?"Enter today's report. Ask an admin to correct a saved entry.":"Every daily report, with who entered it",(staff?"":factorySwitch())+`<button class="btn pri" data-a="add" data-t="production">Add production</button>`)+
-  panel(staff?"Last 7 days":"Reports",tbl(["Date","Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#","Stage","Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td><td>${esc(r.stage)}</td><td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="production" data-id="${r.id}">Edit</button></td>`}</tr>`)));
+  panel(staff?"Last 7 days":"Reports",tbl(["Date","Factory","Grade","Thickness","Size","Pieces#","Sq ft#","Second#","Rejected#","Stage","Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td><td>${esc(r.stage)}</td><td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="production" data-id="${r.id}">Edit</button></td>`}</tr>`)));
 },
 dispatch(){
   const staff=!isAdmin(),rows=Api.rows("dispatch").filter(inF).filter(r=>!staff||r.date>=addDays(today(),-6)).sort((a,b)=>b.date.localeCompare(a.date));
   return head(staff?"Daily dispatch":"Dispatch",staff?"Enter what left the factory today. Ask an admin to correct a saved entry.":"By customer, grade, thickness and size",(staff?"":factorySwitch())+`<button class="btn pri" data-a="add" data-t="dispatch">Add dispatch</button>`)+
-  panel(staff?"Last 7 days":"Dispatches",tbl(["Date","Factory","Customer","Grade","Thickness","Size","Quality","Sheets#","Sq ft#","Vehicle","Challan",...(staff?[]:["Rate#","Amount#"]),"Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td>${esc(r.quality)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="nw">${esc(r.vehicle)}</td><td>${esc(r.challan)}</td>${staff?"":`<td class="n">${r.rate==null?'<span class="pill warn">Not set</span>':esc(r.rate)}</td><td class="n">${dispatchAmount(r)==null?"":inr(dispatchAmount(r))}</td>`}<td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Edit</button></td>`}</tr>`)));
+  panel(staff?"Last 7 days":"Dispatches",tbl(["Date","Factory","Customer","Grade","Thickness","Size","Quality","Pieces#","Sq ft#","Vehicle","Challan",...(staff?[]:["Rate#","Amount#"]),"Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td>${esc(r.quality)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="nw">${esc(r.vehicle)}</td><td>${esc(r.challan)}</td>${staff?"":`<td class="n">${r.rate==null?'<span class="pill warn">Not set</span>':esc(r.rate)}</td><td class="n">${dispatchAmount(r)==null?"":inr(dispatchAmount(r))}</td>`}<td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Edit</button></td>`}</tr>`)));
 },
 inward(){
   const rows=DB.inward.filter(inF).sort((a,b)=>b.date.localeCompare(a.date));
-  return head("Inward","Raw material received at each godown",factorySwitch()+`<button class="btn pri" data-a="add" data-t="inward">Add inward</button>`)+panel("Received",tbl(["Date","Factory","Material","Supplier","Quantity#","Thickness#","Base quantity#","Amount#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.item)}</td><td>${esc(r.supplier)}</td><td class="n">${num(r.qty)}</td><td class="n">${r.item==="Resin"?"":esc(r.mm)+" mm"}</td><td class="n">${r.item==="Resin"?num(r.qty)+" kg":num(Number(r.qty)*(Number(r.mm)||1))}</td><td class="n">${r.amount?inr(r.amount):""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="inward" data-id="${r.id}">Edit</button></td></tr>`)));
+  return head("Inward","Raw material received at each godown",factorySwitch()+`<button class="btn pri" data-a="add" data-t="inward">Add inward</button>`)+panel("Received",tbl(["Date","Factory","Material","Supplier","Quantity#","Thickness#","Base quantity#","Amount#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.item)}</td><td>${esc(r.supplier)}</td><td class="n">${num(r.qty)}</td><td class="n">${!/veneer/i.test(r.item)?"":esc(r.mm)+" mm"}</td><td class="n">${!/veneer/i.test(r.item)?num(r.qty)+" "+RAW_UNIT[r.item]:num(Number(r.qty)*(Number(r.mm)||1))}</td><td class="n">${r.amount?inr(r.amount):""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="inward" data-id="${r.id}">Edit</button></td></tr>`)));
 },
 customers(){
   const rec=receivables();
-  return head("Customers","Grouped by state",`<button class="btn pri" data-a="add" data-t="customers">Add customer</button>`)+STATES.map(st=>{const rows=rec.filter(x=>x.c.state===st);return panel(esc(st)+" · "+rows.length,tbl(["Customer","Type","Salesperson","Credit days#","Credit limit#","Billed#","Received#","Balance#","Overdue#",""],rows.map(x=>`<tr><td>${esc(x.c.name)}</td><td>${esc(x.c.type)}</td><td>${esc(x.c.salesperson)}</td><td class="n">${esc(x.c.credit_days)}</td><td class="n">${inr(x.c.credit_limit)}</td><td class="n">${inr(x.billed)}</td><td class="n">${inr(x.received)}</td><td class="n">${inr(x.balance)}</td><td class="n">${x.overdue?`<span class="pill crit">${inr(x.overdue)}</span>`:"—"}</td><td><button class="btn sm" data-a="edit" data-t="customers" data-id="${x.c.id}">Edit</button></td></tr>`),"No customers in this state yet."));}).join("");
+  return head("Customers","Grouped by state",`<button class="btn pri" data-a="add" data-t="customers">Add customer</button>`)+STATES.map(st=>{const rows=rec.filter(x=>x.c.state===st);return panel(esc(st)+" · "+rows.length,tbl(["Customer","Type","Follow-up by","Credit days#","Credit limit#","Billed#","Received#","Balance#","Overdue#",""],rows.map(x=>`<tr><td>${esc(x.c.name)}</td><td>${esc(x.c.type)}</td><td>${esc(x.c.salesperson)}</td><td class="n">${esc(x.c.credit_days)}</td><td class="n">${inr(x.c.credit_limit)}</td><td class="n">${inr(x.billed)}</td><td class="n">${inr(x.received)}</td><td class="n">${inr(x.balance)}</td><td class="n">${x.overdue?`<span class="pill crit">${inr(x.overdue)}</span>`:"—"}</td><td><button class="btn sm" data-a="edit" data-t="customers" data-id="${x.c.id}">Edit</button></td></tr>`),"No customers in this state yet."));}).join("");
 },
 money(){
   const c=[...DB.collections].sort((a,b)=>b.date.localeCompare(a.date)),p=[...DB.payments].sort((a,b)=>b.date.localeCompare(a.date));
@@ -331,11 +347,10 @@ money(){
   panel("Payments made",tbl(["Date","Paid to","Type","Amount#","Entered by",""],p.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.payee)}</td><td>${esc(r.category)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payments" data-id="${r.id}">Edit</button></td></tr>`)))+`</div>`;
 },
 reports(){
-  const rows=DB.factory_reports.filter(inF).sort((a,b)=>String(b.date).localeCompare(a.date)||String(a.factory).localeCompare(b.factory)),L=rows[0];
-  const v=n=>n==null?"":num(n);
-  return head("Daily summary","Each factory's daily report and running totals. This doesn't change sheet stock.",factorySwitch()+`<button class="btn pri" data-a="add" data-t="factory_reports">Add daily summary</button>`)+
-  (L?`<div class="sub" style="margin-bottom:8px">Latest: ${esc(L.factory)}, ${fmtD(L.date)}</div><div class="tiles">${tile(v(L.production_sheets),"Sheets produced",v(L.production_sqft)+" sq ft")}${tile(v(L.repair_sheets),"Sheets repaired")}${tile(v(L.dispatch_sheets),"Sheets dispatched",v(L.dispatch_sqft)+" sq ft")}${tile(v(L.month_production_sqft),"Month production","sq ft")}${tile(v(L.month_dispatch_sqft),"Month dispatch","sq ft")}</div>`:"")+
-  panel("Reports",tbl(["Date","Factory","Production#","Sq ft#","Repair#","Dispatch#","Sq ft#","Peeling cft#","Peeling sq ft#","Multi frames#","Multi sq ft#","Core dry sq ft#","Week production#","Week dispatch#","Month production#","Month dispatch#","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td class="n">${v(r.production_sheets)}</td><td class="n">${v(r.production_sqft)}</td><td class="n">${v(r.repair_sheets)}</td><td class="n">${v(r.dispatch_sheets)}</td><td class="n">${v(r.dispatch_sqft)}</td><td class="n">${v(r.peeling_cft)}</td><td class="n">${v(r.peeling_sqft)}</td><td class="n">${v(r.multi_frames)}</td><td class="n">${v(r.multi_sqft)}</td><td class="n">${v(r.core_dry_sqft)}</td><td class="n">${v(r.week_production_sqft)}</td><td class="n">${v(r.week_dispatch_sqft)}</td><td class="n">${v(r.month_production_sqft)}</td><td class="n">${v(r.month_dispatch_sqft)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="factory_reports" data-id="${r.id}">Edit</button></td></tr>`),"No daily summaries yet."));
+  const rows=[...DB.factory_reports].sort((a,b)=>String(b.date).localeCompare(a.date)),L=rows[0],v=n=>n==null?"":num(n),m2=n=>n==null?"":"₹"+Number(n).toFixed(2),mo=today().slice(0,7),month=rows.filter(r=>String(r.date).slice(0,7)===mo),sumk=k=>month.reduce((a,r)=>a+(Number(r[k])||0),0);
+  return head("Production report","The factory's daily report, with costs. Admins only.",`<button class="btn pri" data-a="add" data-t="factory_reports">Add production report</button>`)+
+  (L?`<div class="sub" style="margin-bottom:8px">Latest: ${fmtD(L.date)}</div><div class="tiles">${tile(v(L.production_sheets),"Total pieces")}${tile(v(L.pallets_nos),"Pallets",L.pallet_thick?L.pallet_thick+" mm":"")}${tile(v(L.pressed_sqft),"Pressed sq ft",L.loads?v(L.loads)+" loads":"")}${tile(v(L.peeling_sqft),"Peeling sq ft")}${tile(v(L.drying_sqft),"Drying sq ft")}${tile(v(sumk("production_sheets")),"Pieces this month")}</div>`:"")+
+  panel("Reports",tbl(["Date","Total pieces#","Pallets#","Thickness#","Rate#","Loads#","Pressed sq ft#","Peeling sq ft#","Rate#","Drying sq ft#","Rate#","Boiler#","Rejected#","Remarks","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td class="n">${v(r.production_sheets)}</td><td class="n">${v(r.pallets_nos)}</td><td class="n">${r.pallet_thick?esc(r.pallet_thick)+" mm":""}</td><td class="n">${m2(r.press_rate)}</td><td class="n">${v(r.loads)}</td><td class="n">${v(r.pressed_sqft)}</td><td class="n">${v(r.peeling_sqft)}</td><td class="n">${m2(r.peeling_rate)}</td><td class="n">${v(r.drying_sqft)}</td><td class="n">${m2(r.drying_rate)}</td><td class="n">${m2(r.boiler_rate)}</td><td class="n">${v(r.rejected)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="factory_reports" data-id="${r.id}">Edit</button></td></tr>`),"No production reports yet."));
 },
 marketers(){
   const rows=[...DB.marketers].sort((x,y)=>String(x.region).localeCompare(y.region));
@@ -361,13 +376,22 @@ remarks(){
   const rows=[...DB.remarks].sort((x,y)=>String(y.date||"").localeCompare(x.date||""));
   return head("Remarks","Notes and discussions",`<button class="btn pri" data-a="add" data-t="remarks">Add remark</button>`)+panel("Remarks"+" · "+rows.length,tbl(["Date","About","Remark","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.about)}</td><td>${esc(r.text)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="remarks" data-id="${r.id}">Edit</button></td></tr>`),"No remarks yet."));
 },
+orders(){
+  const O=DB.orders,rows=[...O].sort((x,y)=>["Hot lead","Follow-up","Closed"].indexOf(x.status)-["Hot lead","Follow-up","Closed"].indexOf(y.status)||String(y.quote_date||"").localeCompare(x.quote_date||""));
+  const by={};O.filter(commissionDue).forEach(r=>{const k=r.marketer||"Not entered";by[k]=(by[k]||0)+commissionOf(r);});
+  const statusPill=r=>`<span class="pill ${r.status==="Closed"?"ok":r.status==="Hot lead"?"crit":"warn"}">${esc(r.status)}</span>`;
+  return head("Leads & orders","From enquiry to quotation, 30% advance, full payment and dispatch",`<button class="btn pri" data-a="add" data-t="orders">Add lead or order</button>`)+
+  `<div class="tiles">${tile(O.filter(r=>r.status==="Hot lead").length,"Hot leads")}${tile(O.filter(r=>r.status==="Follow-up").length,"Follow-ups")}${tile(O.filter(orderLate).length,"Late orders (past 21 days)",null,O.some(orderLate))}${tile(inr(O.filter(commissionDue).reduce((a,r)=>a+commissionOf(r),0)),"Commission to pay")}${tile(O.filter(repeatDue).length,"Repeat orders due")}</div>`+
+  panel("Leads and orders",tbl(["Marketer","Party","GST","Machine","Pallet size","Thickness","Pieces#","Status","Order value#","Received#","Balance#","Ready by","Dispatched","Commission#","Repeat from","Entered by",""],rows.map(r=>{const b=orderBalance(r),a=advanceDue(r);return `<tr><td class="nw">${esc(r.marketer)}</td><td>${esc(r.party)}</td><td>${esc(r.gst)}</td><td class="nw">${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td>${statusPill(r)}</td><td class="n">${r.value==null?"":inr(r.value)}</td><td class="n">${r.received==null?"":inr(r.received)}${a>0&&r.status==="Closed"?'<div><span class="pill warn">Advance short</span></div>':""}</td><td class="n">${b==null?"":inr(b)}</td><td class="nw">${fmtD(orderDue(r))}${orderLate(r)?' <span class="pill crit">Late</span>':""}</td><td class="nw">${fmtD(r.dispatched)}</td><td class="n">${inr(commissionOf(r))}${commissionDue(r)?'<div><span class="pill warn">To pay</span></div>':r.commission_paid==="Yes"?'<div><span class="pill ok">Paid</span></div>':""}</td><td class="nw">${fmtD(repeatOn(r))}${repeatDue(r)?' <span class="pill crit">Contact</span>':""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="orders" data-id="${r.id}">Edit</button></td></tr>`;}),"No leads yet. Add one, or upload a marketer's list."))+
+  panel("Commission to pay, by marketer",tbl(["Marketer","Amount#"],Object.entries(by).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${inr(v)}</td></tr>`),"Nothing to pay yet. Commission falls due once a party has paid in full."));
+},
 vendors(){
   const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
   return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
 },
 payables(){
   const T=today(),rows=[...DB.payables].sort((x,y)=>(x.status==="Paid")-(y.status==="Paid")||String(x.due||"9").localeCompare(y.due||"9")),open=rows.filter(r=>r.status!=="Paid"),late=open.filter(r=>r.due&&r.due<T),sum=a=>a.reduce((t,r)=>t+Number(r.amount),0);
-  return head("Pending payments","What Akosys owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td><span class="pill ${r.status==="Paid"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
+  return head("Pending payments","What Akolite owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td><span class="pill ${r.status==="Paid"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
 },
 documents(){return head("Upload documents","Send a photo, PDF or sheet for Claude to read")+'<div id="docsHost"></div>';},
 check(){
@@ -405,29 +429,32 @@ function weeklyHTML(){
   const rows=Object.values(g).sort((a,b)=>a.factory.localeCompare(b.factory)||a.grade.localeCompare(b.grade));
   const dis=DB.dispatch.filter(inW),billed=dis.reduce((a,r)=>a+(dispatchAmount(r)||0),0),col=DB.collections.filter(inW).reduce((a,r)=>a+Number(r.amount),0),paid=DB.payments.filter(inW).reduce((a,r)=>a+Number(r.amount),0);
   const rec=receivables(),out=rec.reduce((a,x)=>a+x.balance,0),od=rec.reduce((a,x)=>a+x.overdue,0);
-  const latest=FACTORIES.map(f=>DB.factory_reports.filter(r=>r.factory===f).sort((x,y)=>String(y.date).localeCompare(x.date))[0]).filter(Boolean),v=n=>n==null?"—":num(n);
-  const reported=latest.length?panel("Weekly and monthly totals reported by each factory",tbl(["Factory","Report date","Week production (sq ft)#","Week dispatch (sq ft)#","Month production (sq ft)#","Month dispatch (sq ft)#"],latest.map(r=>`<tr><td>${esc(r.factory)}</td><td class="nw">${fmtD(r.date)}</td><td class="n"><b>${v(r.week_production_sqft)}</b></td><td class="n"><b>${v(r.week_dispatch_sqft)}</b></td><td class="n">${v(r.month_production_sqft)}</td><td class="n">${v(r.month_dispatch_sqft)}</td></tr>`))):"";
+  const rep=DB.factory_reports.filter(inW),rs=k=>rep.reduce((a,r)=>a+(Number(r[k])||0),0);
+  const reported=rep.length?panel("From daily production reports",tbl(["Reports","Total pieces#","Pallets#","Pressed sq ft#","Peeling sq ft#","Drying sq ft#","Rejected#"],[`<tr><td>${rep.length}</td><td class="n">${num(rs("production_sheets"))}</td><td class="n">${num(rs("pallets_nos"))}</td><td class="n">${num(rs("pressed_sqft"))}</td><td class="n">${num(rs("peeling_sqft"))}</td><td class="n">${num(rs("drying_sqft"))}</td><td class="n">${num(rs("rejected"))}</td></tr>`])):"";
+  const fin=finishedStock(),rawS=rawStock();
+  const inventory=panel("Inventory now",tbl(["Item","Details","Balance#"],fin.map(r=>`<tr><td>${esc(r.grade)}</td><td>${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.first)} pieces</td></tr>`).concat(rawS.map(r=>`<tr><td>${esc(r.item)}</td><td>Raw material</td><td class="n">${num(r.balance)} ${esc(r.unit)}</td></tr>`))));
   const detail=p.length||dis.length?"":'<p class="sub" style="margin:0 0 10px">The figures below add up detailed production, dispatch and money entries. None have been entered for this period yet.</p>';
-  return reported+detail+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched")}${tile(inr(billed),"Sales billed")}${tile(inr(col),"Collections")}${tile(inr(paid),"Payments made")}${tile(inr(col-paid),"Net cash")}${tile(inr(out),"Total outstanding")}${tile(inr(od),"Overdue",null,od>0)}</div>`+
-  panel("Production, Monday to Saturday",tbl(["Factory","Grade","Thickness","Size","Sheets#","Sq ft#","Second#","Rejected#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td></tr>`),"No production in those days."));
+  return reported+detail+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched")}${tile(inr(billed),"Sales billed")}${tile(inr(col),"Collections")}${tile(inr(paid),"Payments made")}${tile(inr(col-paid),"Net cash")}${tile(inr(out),"Total outstanding")}${tile(inr(od),"Overdue",null,od>0)}</div>`+
+  panel("Production, Monday to Saturday",tbl(["Factory","Grade","Thickness","Size","Pieces#","Sq ft#","Second#","Rejected#"],rows.map(r=>`<tr><td>${esc(r.factory)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="n">${num(r.second)}</td><td class="n">${num(r.rejected)}</td></tr>`),"No production in those days."))+inventory;
 }
 
 /* ---- forms ---- */
 const custNames=()=>Api.rows("customers").map(r=>r.name);
 const FORMS={
+  orders:{one:"lead or order",f:()=>[{k:"marketer",l:"Marketer",o:["",...DB.marketers.map(r=>r.person).filter(Boolean)]},{k:"party",l:"Party name",req:1},{k:"status",l:"Status",o:["Follow-up","Hot lead","Closed"]},{k:"gst",l:"GST number"},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"qty",l:"Pieces required",t:"number"},{k:"quote_date",l:"Quotation date",t:"date",nodef:1},{k:"confirm_date",l:"Order confirmed on",t:"date",nodef:1},{k:"value",l:"Order value (₹)",t:"number"},{k:"received",l:"Received so far (₹)",t:"number"},{k:"dispatched",l:"Dispatched on",t:"date",nodef:1},{k:"commission_rate",l:"Commission per piece (₹)",t:"number",def:20},{k:"commission_paid",l:"Commission paid?",o:["No","Yes"]},{k:"remarks",l:"Remarks"}]},
   marketers:{one:"marketer",f:()=>[{k:"region",l:"Region",req:1},{k:"person",l:"Marketer"},{k:"commission",l:"Commission %",t:"number"},{k:"phone",l:"Phone"},{k:"product",l:"Product"},{k:"remarks",l:"Remarks"}]},
   makers:{one:"machine maker",f:()=>[{k:"name",l:"Company",req:1},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"remarks",l:"Remarks"}]},
   machines:{one:"machine model",f:()=>[{k:"maker",l:"Company",o:DB.makers.map(r=>r.name)},{k:"model",l:"Machine model",req:1},{k:"use",l:"Makes (block, brick or paver)"},{k:"pallet",l:"Pallet size"},{k:"remarks",l:"Remarks"}]},
   pallet_sizes:{one:"pallet size",f:()=>[{k:"size",l:"Size (L x W x H mm)",req:1},{k:"type",l:"Type"},{k:"remarks",l:"Remarks"}]},
   followups:{one:"follow-up",f:()=>[{k:"due",l:"Follow up on",t:"date"},{k:"party",l:"Party"},{k:"about",l:"About",req:1},{k:"owner",l:"Who follows up"},{k:"status",l:"Status",o:["Open","Done"]},{k:"remarks",l:"Remarks"}]},
   remarks:{one:"remark",f:()=>[{k:"date",l:"Date",t:"date"},{k:"about",l:"About"},{k:"text",l:"Remark",req:1}]},
-  factory_reports:{one:"daily summary",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"production_sheets",l:"Production (sheets)",t:"number"},{k:"production_sqft",l:"Production (sq ft)",t:"number"},{k:"repair_sheets",l:"Repair (sheets)",t:"number"},{k:"dispatch_sheets",l:"Dispatch (sheets)",t:"number"},{k:"dispatch_sqft",l:"Dispatch (sq ft)",t:"number"},{k:"peeling_cft",l:"Peeling (cft)",t:"number"},{k:"peeling_sqft",l:"Peeling (sq ft)",t:"number"},{k:"multi_frames",l:"Multi (frames)",t:"number"},{k:"multi_sqft",l:"Multi (sq ft)",t:"number"},{k:"core_dry_sqft",l:"Core dry (sq ft)",t:"number"},{k:"week_production_sqft",l:"Week production (sq ft)",t:"number"},{k:"week_dispatch_sqft",l:"Week dispatch (sq ft)",t:"number"},{k:"month_production_sqft",l:"Month production (sq ft)",t:"number"},{k:"month_dispatch_sqft",l:"Month dispatch (sq ft)",t:"number"}]},
+  factory_reports:{one:"production report",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"production_sheets",l:"Total pieces",t:"number"},{k:"pallets_nos",l:"Pallets (nos.)",t:"number"},{k:"pallet_thick",l:"Pallet thickness (mm)",t:"number"},{k:"press_rate",l:"Rate (₹/sq ft, 12 mm basis)",t:"number"},{k:"loads",l:"Loads",t:"number"},{k:"pressed_sqft",l:"Pressed (sq ft)",t:"number"},{k:"peeling_sqft",l:"Peeling (sq ft)",t:"number"},{k:"peeling_rate",l:"Peeling rate (₹/sq ft)",t:"number"},{k:"drying_sqft",l:"Drying (sq ft)",t:"number"},{k:"drying_rate",l:"Drying rate (₹/sq ft)",t:"number"},{k:"boiler_rate",l:"Boiler (₹/sq ft)",t:"number"},{k:"rejected",l:"Rejected (nos.)",t:"number"},{k:"remarks",l:"Remarks"}]},
   vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
   payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
-  production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good sheets",t:"number",req:1},{k:"second",l:"Second-grade sheets",t:"number"},{k:"rejected",l:"Rejected sheets",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
-  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",o:THICK},{k:"size",l:"Size (ft)",o:SIZES},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Sheets",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
+  production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good pieces",t:"number",req:1},{k:"second",l:"Second-grade pieces",t:"number"},{k:"rejected",l:"Rejected pieces",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
+  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"supplier",l:"Supplier"},{k:"qty",l:"Sq ft (kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"}]},
-  customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Salesperson"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
+  customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
   collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
   payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to",req:1},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
   counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
@@ -437,7 +464,7 @@ function renderModal(){
   const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
   if(M.report){L.innerHTML=`<div class="wrap" data-a="closebg"><div class="modal wide" data-stop="1" role="dialog" aria-modal="true" aria-label="Weekly report"><h2>Monday report</h2>${weeklyHTML()}<div class="actions"><button class="btn pri" data-a="close">Close</button></div></div></div>`;return;}
   const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
-  const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.t==="date"?today():""),id="f-"+f.k;
+  const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
     if(f.o)return `<select id="${id}">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
     return `<input id="${id}" type="${f.t||"text"}" ${f.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${esc(v)}" ${f.req?"required":""} autocomplete="off">`;};
   L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}"><h2>${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}</h2>
@@ -448,18 +475,19 @@ function renderModal(){
 function liveCalc(){
   const c=$("calc");if(!c||!S.modal||!["production","dispatch"].includes(S.modal.t))return;
   const r={sheets:$("f-sheets").value,size:$("f-size").value,thick:$("f-thick").value};
-  c.textContent=Number(r.sheets)?`${num(r.sheets)} sheets × ${area(r.size)} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"";
+  c.textContent=Number(r.sheets)?`${num(r.sheets)} pieces × ${num(area(r.size))} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"";
 }
 async function saveForm(){
   const M=S.modal,rec=M.id?{id:M.id}:{},btn=document.querySelector("#recForm .btn.pri");
   formFields(M.t).forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
+  if(M.t==="orders"&&rec.dispatched&&rec.value!=null&&Number(rec.received||0)<Number(rec.value)&&!M.payOK){M.payOK=true;$("ferr").textContent="Payment isn't complete. Press Save again only if this dispatch was approved anyway.";return;}
   if(M.t==="dispatch"&&!rec.customer){$("ferr").textContent="Add a customer before entering a dispatch.";return;}
   btn.disabled=true;btn.textContent="Saving…";
   try{
     if(M.t==="dispatch"&&!M.id&&!M.stockOK){
       const {data,error}=await sb.rpc("sheets_available",{p_factory:rec.factory,p_grade:rec.grade,p_thick:rec.thick,p_size:rec.size,p_quality:rec.quality});
       if(error)throw error;
-      if(Number(rec.sheets)>Number(data)){M.stockOK=true;$("ferr").textContent=`The records show only ${num(data)} of these sheets at ${rec.factory}. Check the entry, or press Save again to record it anyway.`;btn.disabled=false;btn.textContent="Save";return;}
+      if(Number(rec.sheets)>Number(data)){M.stockOK=true;$("ferr").textContent=`The records show only ${num(data)} of these pieces at ${rec.factory}. Check the entry, or press Save again to record it anyway.`;btn.disabled=false;btn.textContent="Save";return;}
     }
     await Api.save(M.t,rec);S.modal=null;renderModal();render();
   }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
@@ -468,14 +496,14 @@ async function saveForm(){
 /* ---- shell ---- */
 function render(){
   const R=$("root");
-  if(!sb){R.innerHTML='<div class="login"><form><h1>Akosys Pvt</h1><div class="err">This app isn\'t connected to its database yet. Add the project address and key to config.js.</div></form></div>';return;}
+  if(!sb){R.innerHTML='<div class="login"><form><h1>Akolite Industrial Systems</h1><div class="err">This app isn\'t connected to its database yet. Add the project address and key to config.js.</div></form></div>';return;}
   if(S.loading){R.innerHTML='<div class="login"><div class="sub">Loading…</div></div>';return;}
-  if(!S.user){R.innerHTML=`<div class="login"><form id="loginForm"><div><h1>Akosys Pvt</h1><div class="sub">Factory app · Part of Saleem OS</div></div><label>Your name or email<input id="lName" autocomplete="username" autocapitalize="none" value="${esc(S.lastName||"")}" required></label><label>Your PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><div class="err" id="lErr" role="alert">${esc(S.err)}</div><button class="btn pri">Sign in</button></form></div>`;return;}
+  if(!S.user){R.innerHTML=`<div class="login"><form id="loginForm"><div><h1>Akolite Industrial Systems</h1><div class="sub">Factory app · Part of Saleem OS</div></div><label>Your name or email<input id="lName" autocomplete="username" autocapitalize="none" value="${esc(S.lastName||"")}" required></label><label>Your PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><div class="err" id="lErr" role="alert">${esc(S.err)}</div><button class="btn pri">Sign in</button></form></div>`;return;}
   const nav=NAV[S.user.role],od=receivables().filter(x=>x.overdue>0).length;
   if(!nav.some(n=>n[0]===S.view))S.view=nav[0][0];
   const main=V[S.view]();
-  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOSYS PVT</b><span>Part of Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
-  if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
+  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Industrial Systems · Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Leads & orders","Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-a]");if(!el)return;const a=el.dataset.a;
