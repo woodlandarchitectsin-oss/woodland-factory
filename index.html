@@ -272,9 +272,10 @@ const V={
 today(){
   const T=today(),p=DB.production.filter(r=>r.date===T&&inF(r)&&r.stage!=="Opening stock"),dis=DB.dispatch.filter(r=>r.date===T&&inF(r)),inw=DB.inward.filter(r=>r.date===T&&inF(r));
   const col=DB.collections.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0),pay=DB.payments.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0);
+  const lb=lastBackup(),dueBackup=!lb||lb<addDays(T,-7);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+
-  `<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>r.item!=="Resin").reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(inr(col),"Collections today")}${tile(inr(pay),"Payments made today")}</div>`+
+  (dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>r.item!=="Resin").reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Sheets dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(inr(col),"Collections today")}${tile(inr(pay),"Payments made today")}</div>`+
   panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":"")+
   (up.length?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Sheets#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
 },
@@ -331,9 +332,16 @@ history(){
   return head("Who entered what","Every change made in the app")+panel("Changes",tbl(["When","Person","Access","Action","Details"],DB.log.slice(0,200).map(l=>`<tr><td class="nw">${esc(new Date(l.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}))}</td><td class="nw">${esc(l.user)}</td><td>${esc(ROLE_LABEL[l.role])}</td><td>${esc(l.action)}</td><td>${esc(l.summary)}</td></tr>`),"Changes will appear here as soon as someone saves an entry."))+``;
 },
 settings(){
-  return head("Settings","Figures used by the automatic calculation")+panel("Automatic raw material use",`<form class="form" id="setForm" style="padding:14px"><label>Veneer used per 1 sq ft × mm of plywood<input id="s-v" type="number" step="any" min="0" value="${esc(DB.settings.veneer_factor)}"></label><label>Resin kg per 1,000 sq ft × mm<input id="s-r" type="number" step="any" min="0" value="${esc(DB.settings.resin_per_k)}"></label><div class="row" style="grid-column:1/-1"><button class="btn pri">Save</button></div></form><div class="note">Replace these starting figures with the factory's real numbers, or the stock check will flag false differences.</div>`);
+  return head("Settings","Figures used by the automatic calculation")+panel("Automatic raw material use",`<form class="form" id="setForm" style="padding:14px"><label>Veneer used per 1 sq ft × mm of plywood<input id="s-v" type="number" step="any" min="0" value="${esc(DB.settings.veneer_factor)}"></label><label>Resin kg per 1,000 sq ft × mm<input id="s-r" type="number" step="any" min="0" value="${esc(DB.settings.resin_per_k)}"></label><div class="row" style="grid-column:1/-1"><button class="btn pri">Save</button></div></form><div class="note">Replace these starting figures with the factory's real numbers, or the stock check will flag false differences.</div>`)+panel("Backup",`<div style="padding:14px" class="row"><button class="btn pri" data-a="backup">Download backup</button><span class="sub">${esc(lastBackup()?"Last downloaded on this device: "+fmtD(lastBackup()):"Not downloaded on this device yet")}</span></div><div class="note">The file contains prices and financial data, so keep it somewhere private. Download one every week.</div>`);
 }
 };
+function lastBackup(){try{return localStorage.getItem("woodland-last-backup")||"";}catch(e){return "";}}
+function downloadBackup(){
+  const {log,...data}=DB,blob=new Blob([JSON.stringify({savedAt:new Date().toISOString(),savedBy:S.user.name,data,history:log},null,1)],{type:"application/json"});
+  const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download="woodland-backup-"+today()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
+  try{localStorage.setItem("woodland-last-backup",today());}catch(e){}
+  render();
+}
 function weeklyHTML(){
   const w=lastWeek(),inW=r=>r.date>=w.from&&r.date<=w.to;
   const p=DB.production.filter(r=>inW(r)&&r.stage!=="Opening stock"),g={};
@@ -406,6 +414,7 @@ document.addEventListener("click",e=>{
   if(a==="view"){S.view=el.dataset.v;render();window.scrollTo(0,0);}
   else if(a==="factory"){S.factory=el.dataset.v;render();}
   else if(a==="logout"){signOut();}
+  else if(a==="backup"){downloadBackup();}
   else if(a==="add"){S.modal={t:el.dataset.t};renderModal();}
   else if(a==="edit"){S.modal={t:el.dataset.t,id:el.dataset.id};renderModal();}
   else if(a==="close"){S.modal=null;renderModal();}
