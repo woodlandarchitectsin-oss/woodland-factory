@@ -182,19 +182,19 @@ const DEFAULTS=[
   {id:"woodland",name:"Woodland Ply",note:"Plywood · Woodland and KTR factories",url:"../index.html"},
   {id:"akosys",name:"Akolite Industrial",note:"Pallets & plywood · Mangalore",full:true,url:"../akolite/index.html"},
   {id:"asr",name:"ASR Pvt Ltd",note:"Resins"},
-  {id:"tgf",name:"TGF Saudi",note:""},
-  {id:"goldenasia",name:"Golden Asia",note:"Palm · Dubai"},
-  {id:"falcon",name:"Falcon",note:""},
-  {id:"woodlite",name:"Woodlite",note:""}
+  {id:"tgf",name:"TGF Saudi",note:"Granite · Imported from India, made and sold in Saudi Arabia",tabs:["shipment","product","production","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
+  {id:"goldenasia",name:"Golden Asia",note:"Palm oil · Dubai",people:"Father-in-law's business · Mr. Saleem may join soon",tabs:["shipment","product","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
+  {id:"falcon",name:"Falcon",note:"Plywood & hardware shop · Bangalore",people:"Arshad (face) · Sheebu (investor) · Mr. Saleem",tabs:["product","inout","party","order","followup","vendor","payable","remark","documents","activity"]},
+  {id:"woodlite",name:"Woodlite",note:"Imported face & core veneer trading · Wood sizes planned",people:"Partners: Sheebu · Shafeeq · Khaleel · Mr. Saleem",tabs:["shipment","product","inout","party","order","followup","vendor","payable","remark","documents","activity"]}
 ];
 let BUSINESSES=DEFAULTS;
 function mergeBiz(){
   const over={};S.records.filter(r=>r.kind==="biz").forEach(r=>{over[r.bizId]=r;});
-  const list=DEFAULTS.map(b=>{const o=over[b.id];return o?{...b,name:o.name||b.name,note:o.note||"",full:o.screens?o.screens==="Full":b.full,rid:o.id}:b;});
-  Object.values(over).filter(r=>!DEFAULTS.some(b=>b.id===r.bizId)).forEach(r=>list.push({id:r.bizId,name:r.name,note:r.note||"",full:r.screens==="Full",rid:r.id}));
+  const list=DEFAULTS.map(b=>{const o=over[b.id];return o?{...b,name:o.name||b.name,note:o.note||b.note,people:o.people||b.people||"",full:o.screens?o.screens==="Full":b.full,rid:o.id}:b;});
+  Object.values(over).filter(r=>!DEFAULTS.some(b=>b.id===r.bizId)).forEach(r=>list.push({id:r.bizId,name:r.name,note:r.note||"",people:r.people||"",full:r.screens==="Full",rid:r.id}));
   return list;
 }
-const UNITS=["Nos","CBM","Sq ft","Kg","Ton","Litre"];
+const UNITS=["Nos","CBM","Sq ft","Sq m","Kg","Ton","Litre","Sheet","Bundle","Block","Box"];
 const KINDS={
   followup:{tab:"Follow-ups",one:"follow-up",sort:"due",dir:1,fields:[
     {k:"due",label:"Follow up on",type:"date"},{k:"party",label:"Party",list:"party"},{k:"about",label:"About",req:1,wide:1,full:1},
@@ -212,7 +212,7 @@ const KINDS={
     {k:"maker",label:"Company",list:"maker",req:1},{k:"model",label:"Machine model",req:1},{k:"use",label:"Makes (block, brick or paver)"},{k:"pallet",label:"Pallet size",list:"pallet"},
     {k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
   production:{tab:"Production report",one:"production entry",sort:"date",dir:-1,fullOnly:1,fields:[
-    {k:"date",label:"Date",type:"date",req:1},{k:"machine",label:"For machine model",list:"machine"},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet"},
+    {k:"date",label:"Date",type:"date",req:1},{k:"machine",label:"For machine model",list:"machine",fullOnly:1},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet",fullOnly:1},
     {k:"qty",label:"Quantity made",type:"number",req:1},{k:"operator",label:"Operator or shift"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
   pallet:{tab:"Pallet sizes",one:"pallet size",sort:"size",dir:1,fullOnly:1,fields:[
     {k:"size",label:"Size (L × W × H mm)",req:1},{k:"type",label:"Type"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
@@ -224,11 +224,16 @@ const KINDS={
     {k:"date",label:"Order date",type:"date"},{k:"party",label:"Party",list:"party",req:1},{k:"product",label:"Product",list:"product"},{k:"pallet",label:"Pallet size",list:"pallet",fullOnly:1},
     {k:"marketer",label:"Marketer",list:"marketer",fullOnly:1},{k:"qty",label:"Ordered",type:"number"},{k:"sent",label:"Dispatched",type:"number"},{k:"balance",label:"Balance",calc:1},{k:"due",label:"Due",type:"date"},
     {k:"status",label:"Status",type:"select",options:["Pending","In production","Part dispatched","Delivered","Cancelled"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  shipment:{tab:"Imports & shipments",one:"shipment",sort:"due",dir:1,fields:[
+    {k:"ref",label:"Container or shipment no.",req:1},{k:"supplier",label:"Supplier",list:"vendor"},{k:"origin",label:"From (country)"},{k:"item",label:"Item",list:"product",wide:1},{k:"qty",label:"Quantity",type:"number"},{k:"unit",label:"Unit",type:"select",options:UNITS},
+    {k:"sailed",label:"Sailing date",type:"date"},{k:"due",label:"Expected arrival",type:"date"},{k:"status",label:"Status",type:"select",options:["Ordered","Shipped","At port","Cleared","Received","Cancelled"]},{k:"landed",label:"Total landed cost",type:"number"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
+  renewal:{tab:"Licences & renewals",one:"renewal",sort:"due",dir:1,fields:[
+    {k:"name",label:"Licence or document",req:1,wide:1},{k:"holder",label:"Staff member or company"},{k:"due",label:"Expires on",type:"date",req:1},{k:"status",label:"Status",type:"select",options:["Active","Renewed"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
   vendor:{tab:"Vendors",one:"vendor",sort:"name",dir:1,fields:[{k:"name",label:"Vendor name",req:1,wide:1},{k:"type",label:"Supplies"},{k:"region",label:"Region"},{k:"person",label:"Contact person"},{k:"phone",label:"Phone"},{k:"gst",label:"Tax number"},{k:"terms",label:"Payment terms"},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
   payable:{tab:"Pending payments",one:"bill",sort:"due",dir:1,fields:[{k:"vendor",label:"Vendor",req:1,wide:1},{k:"bill",label:"Bill no."},{k:"date",label:"Bill date",type:"date"},{k:"due",label:"Due date",type:"date"},{k:"amount",label:"Amount",type:"number",req:1},{k:"status",label:"Status",type:"select",options:["Pending","Paid"]},{k:"remarks",label:"Remarks",type:"textarea",wide:1,full:1}]},
   documents:{tab:"Upload documents",one:"",fields:[]},
   activity:{tab:"History",one:"",fields:[]},
-  biz:{tab:"",one:"business",fields:[{k:"name",label:"Business name",req:1,full:1},{k:"note",label:"What it does",full:1},{k:"screens",label:"Screens",type:"select",options:["Standard","Full"],full:1}]},
+  biz:{tab:"",one:"business",fields:[{k:"name",label:"Business name",req:1,full:1},{k:"note",label:"What it does",full:1},{k:"people",label:"Partners and people",full:1},{k:"screens",label:"Screens",type:"select",options:["Standard","Full"],full:1}]},
   remark:{tab:"Remarks & discussions",one:"remark",sort:"date",dir:-1,fields:[
     {k:"date",label:"Date",type:"date"},{k:"about",label:"About"},{k:"text",label:"Remark",type:"textarea",req:1,wide:1,full:1}]}
 };
@@ -247,6 +252,10 @@ const bizOf=id=>BUSINESSES.find(b=>b.id===id);
 const rec=(biz,kind)=>S.records.filter(r=>r.biz===biz&&r.kind===kind);
 const fieldsFor=(kind,biz)=>KINDS[kind].fields.filter(f=>!f.fullOnly||(bizOf(biz)||{}).full);
 const daysLate=d=>Math.round((new Date(today()+"T00:00:00")-new Date(d+"T00:00:00"))/864e5);
+const CLOSED=/Done|Delivered|Cancelled|Received|Renewed|Paid/;
+const tabsOf=b=>b.full?FULL_TABS:b.tabs||BASIC_TABS;
+const openShip=biz=>rec(biz,"shipment").filter(r=>!CLOSED.test(r.status||""));
+const soonRenew=biz=>{const lim=new Date(Date.now()+30*864e5).toLocaleDateString("en-CA");return rec(biz,"renewal").filter(r=>r.status!=="Renewed"&&r.due&&r.due<=lim);};
 const openFU=biz=>rec(biz,"followup").filter(r=>r.status!=="Done");
 const lateFU=biz=>openFU(biz).filter(r=>r.due&&r.due<today());
 const openOrders=biz=>rec(biz,"order").filter(r=>r.status!=="Delivered"&&r.status!=="Cancelled");
@@ -256,12 +265,12 @@ const byDate=(a,f)=>[...a].sort((x,y)=>String(x[f]||"9").localeCompare(String(y[
 
 function pill(kind,r,k){
   const v=r[k];if(!v)return "";
-  const cls=/Done|Delivered|Running/.test(v)?"ok":/Down|Cancelled/.test(v)?"crit":/Maintenance|Part|Outward/.test(v)?"warn":"";
+  const cls=/Done|Delivered|Running|Received|Renewed/.test(v)?"ok":/Down|Cancelled/.test(v)?"crit":/Maintenance|Part|Outward/.test(v)?"warn":"";
   return `<span class="pill ${cls}">${esc(v)}</span>`;
 }
 function cell(kind,r,f){
   if(f.calc){const b=balance(r);return b==null?"":num(b);}
-  if(f.type==="date"){const late=f.k==="due"&&r[f.k]&&r[f.k]<today()&&r.status!=="Done"&&r.status!=="Delivered"&&r.status!=="Cancelled";return (fmtD(r[f.k])+(late?` <span class="pill crit">${daysLate(r[f.k])}d late</span>`:""));}
+  if(f.type==="date"){const late=f.k==="due"&&r[f.k]&&r[f.k]<today()&&!CLOSED.test(r.status||"");return (fmtD(r[f.k])+(late?` <span class="pill crit">${daysLate(r[f.k])}d late</span>`:""));}
   if(f.type==="select")return pill(kind,r,f.k);
   if(f.type==="number")return r[f.k]==null||r[f.k]===""?"":num(r[f.k]);
   if(r[f.k]&&(f.list==="party"||(kind==="party"&&f.k==="name")))return `<button class="clk" data-a="party" data-v="${esc(r[f.k])}">${esc(r[f.k])}</button>`;
@@ -283,6 +292,8 @@ function attention(only){
   BUSINESSES.filter(b=>!only||b.id===only).forEach(b=>{
     openFU(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"followup",title:r.about,sub:"Follow-up"+(r.party?" · "+r.party:""),tag:d?d+"d late":"Today"});});
     rec(b.id,"payable").forEach(r=>{if(r.status==="Paid"||!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"payable",title:r.vendor,sub:"Bill to pay"+(r.amount?" · "+num(r.amount):""),tag:d?d+"d late":"Today"});});
+    openShip(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due);out.push({sev:d>0?2:1,d,b,kind:"shipment",title:r.ref,sub:"Shipment"+(r.item?" · "+r.item:"")+(r.status?" · "+r.status:""),tag:d?d+"d late":"Today"});});
+    soonRenew(b.id).forEach(r=>{const d=daysLate(r.due);out.push({sev:d>=0?2:1,d,b,kind:"renewal",title:r.name,sub:"Renewal"+(r.holder?" · "+r.holder:""),tag:d>0?d+"d late":d===0?"Today":"In "+(-d)+"d"});});
     openOrders(b.id).forEach(r=>{if(!r.due||r.due>t)return;const d=daysLate(r.due),bal=balance(r);out.push({sev:d>0?2:1,d,b,kind:"order",title:r.party,sub:"Order"+(r.product?" · "+r.product:"")+(bal!=null?" · "+num(bal)+" left":""),tag:d?d+"d late":"Today"});});
   });
   return out.sort((x,y)=>y.sev-x.sev||y.d-x.d);
@@ -305,19 +316,23 @@ function renderHome(){
   <div class="tiles">${tile(BUSINESSES.length,"Businesses")}${tile(totals.fu,"Open follow-ups")}${tile(totals.late,"Late follow-ups",1)}${tile(totals.ord,"Pending orders")}</div>
   ${attentionPanel()}
   <section class="panel"><h2>Businesses</h2><div class="scroll"><table><thead><tr><th>Business</th><th>What it does</th><th class="n">Open follow-ups</th><th class="n">Late</th><th class="n">Pending orders</th></tr></thead><tbody>
-  ${BUSINESSES.map(b=>`<tr><td><button class="clk" data-a="biz" data-v="${b.id}">${esc(b.name)}</button></td><td>${esc(b.note)||'<span class="sub">To be added</span>'}</td>${b.url?`<td class="n" colspan="3"><button class="clk" data-a="biz" data-v="${b.id}">Open inside Saleem OS</button></td>`:`<td class="n">${openFU(b.id).length}</td><td class="n">${lateFU(b.id).length?`<span class="pill crit">${lateFU(b.id).length}</span>`:0}</td><td class="n">${openOrders(b.id).length}</td>`}</tr>`).join("")}
+  ${BUSINESSES.map(b=>`<tr><td><button class="clk" data-a="biz" data-v="${b.id}">${esc(b.name)}</button></td><td>${esc(b.note)||'<span class="sub">To be added</span>'}${b.people?`<div class="sub">${esc(b.people)}</div>`:""}</td>${b.url?`<td class="n" colspan="3"><button class="clk" data-a="biz" data-v="${b.id}">Open inside Saleem OS</button></td>`:`<td class="n">${openFU(b.id).length}</td><td class="n">${lateFU(b.id).length?`<span class="pill crit">${lateFU(b.id).length}</span>`:0}</td><td class="n">${openOrders(b.id).length}</td>`}</tr>`).join("")}
   </tbody></table></div></section>
   `;
 }
 function renderOverview(b){
   const id=b.id,fu=byDate(openFU(id),"due"),ord=byDate(openOrders(id),"due"),rem=byDate(rec(id,"remark"),"date").reverse();
-  const m=today().slice(0,7),prod=rec(id,"production");
+  const m=today().slice(0,7),prod=rec(id,"production"),tabs=tabsOf(b);
   let h=`<div class="tiles">${tile(fu.length,"Open follow-ups")}${tile(lateFU(id).length,"Late follow-ups",1)}${tile(ord.length,"Pending orders")}${tile(rec(id,"party").length,"Parties")}`;
-  if(b.full)h+=tile(num(sum(prod.filter(r=>r.date===today()),"qty")),"Made today")+tile(num(sum(prod.filter(r=>String(r.date).slice(0,7)===m),"qty")),"Made this month");
+  if(tabs.includes("shipment"))h+=tile(openShip(id).length,"Shipments on the way");
+  if(tabs.includes("renewal"))h+=tile(soonRenew(id).length,"Renewals within 30 days",1);
+  if(tabs.includes("production"))h+=tile(num(sum(prod.filter(r=>r.date===today()),"qty")),"Made today")+tile(num(sum(prod.filter(r=>String(r.date).slice(0,7)===m),"qty")),"Made this month");
   h+=`</div>${attentionPanel(id)}<div class="grid2"><section class="panel"><h2>Next follow-ups</h2>${fu.slice(0,6).map(r=>fuRow(r)).join("")||'<div class="none">No open follow-ups.</div>'}</section>
   <section class="panel"><h2>Pending orders</h2>${ord.slice(0,6).map(orderRow).join("")||'<div class="none">No pending orders.</div>'}</section>`;
   if(b.full)h+=`<section class="panel"><h2>Marketers</h2>${rec(id,"region").sort((x,y)=>String(x.region).localeCompare(y.region)).map(r=>li(esc(r.region),esc(r.product),`<span>${esc(r.person)}</span>`)).join("")||'<div class="none">No marketers yet.</div>'}</section>
   <section class="panel"><h2>Products</h2>${rec(id,"product").map(r=>li(esc(r.name),esc(r.remarks))).join("")||'<div class="none">No products yet.</div>'}</section>`;
+  else if(tabs.includes("shipment"))h+=`<section class="panel"><h2>Shipments on the way</h2>${byDate(openShip(id),"due").slice(0,6).map(r=>li(esc(r.ref),[esc(r.item),esc(r.status)].filter(Boolean).join(" · "),r.due?`<span class="pill ${r.due<today()?"crit":""}">${esc(fmtD(r.due))}</span>`:"")).join("")||'<div class="none">No shipments on the way.</div>'}</section>`;
+  if(!b.full&&tabs.includes("product"))h+=`<section class="panel"><h2>Products</h2>${rec(id,"product").map(r=>li(esc(r.name),esc(r.remarks))).join("")||'<div class="none">No products yet.</div>'}</section>`;
   h+=`<section class="panel"><h2>Latest remarks</h2>${rem.slice(0,5).map(r=>li(esc(r.text),[esc(fmtD(r.date)),esc(r.about)].filter(Boolean).join(" · "))).join("")||'<div class="none">No remarks yet.</div>'}</section></div>`;
   return h;
 }
@@ -330,7 +345,7 @@ function summary(kind,biz){
     const tb=(title,rows)=>`<section class="panel"><h2>${title}</h2>${rows.map(([n,q])=>li(esc(n),"",`<b>${num(q)}</b>`)).join("")||'<div class="none">No production in these dates.</div>'}</section>`;
     return `<div class="bar"><label class="dt">From<input type="date" id="pf" value="${esc(prodFrom())}"></label><label class="dt">To<input type="date" id="pt" value="${esc(prodTo())}"></label></div>
     <div class="tiles">${tile(num(sum(rec(biz,kind).filter(r=>r.date===today()),"qty")),"Made today")}${tile(num(sum(p,"qty")),"Made in these dates")}${tile(new Set(p.map(r=>r.date)).size,"Days reported")}</div>
-    <div class="grid2" style="margin-bottom:14px">${tb("By product",group("product"))}${tb("By machine",group("machine"))}</div>`;
+    <div class="grid2" style="margin-bottom:14px">${tb("By product",group("product"))}${(bizOf(biz)||{}).full?tb("By machine",group("machine")):""}</div>`;
   }
   if(kind==="inout"){
     const t={};rec(biz,kind).forEach(r=>{const key=(r.item||"")+"|"+(r.unit||"");t[key]=t[key]||{item:r.item,unit:r.unit,i:0,o:0};t[key][r.direction==="Outward"?"o":"i"]+=Number(r.qty)||0;});
@@ -360,10 +375,10 @@ function render(){
   const note=S.note?`<div class="msg" role="status">${esc(S.note)}</div>`:"";
   if(!S.loaded&&!S.note){m.innerHTML='<p class="sub">Loading your records…</p>';return;}
   if(!S.biz){m.innerHTML=note+renderHome();return;}
-  const b=bizOf(S.biz),tabs=b.full?FULL_TABS:BASIC_TABS;
+  const b=bizOf(S.biz),tabs=tabsOf(b);
   if(b.url){{const fr=m.querySelector("iframe");if(!fr||fr.getAttribute("src")!==b.url)m.innerHTML=`<iframe src="${esc(b.url)}" title="${esc(b.name)}"></iframe>`;}return;m.innerHTML=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)}</div></div></div><section class="panel"><h2>Woodland Ply has its own app</h2><div class="none">Production, stock, dispatch, customers and money are kept in the Woodland app, with separate logins. Its figures don't appear in Saleem OS yet.</div><div style="padding:0 14px 16px"><a class="btn pri" style="display:inline-block;text-decoration:none" href="${esc(b.url)}" target="_blank" rel="noopener">Open Woodland app</a></div></section>`;return;}
   if(S.tab!=="overview"&&!tabs.includes(S.tab))S.tab="overview";
-  let h=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)||"Business details to be added"}</div></div>${S.readOnly?"":'<button class="btn" data-a="editbiz">Edit details</button>'}</div>
+  let h=note+`<div class="head"><div><h1>${esc(b.name)}</h1><div class="sub">${esc(b.note)||"Business details to be added"}</div>${b.people?`<div class="sub">${esc(b.people)}</div>`:""}</div>${S.readOnly?"":'<button class="btn" data-a="editbiz">Edit details</button>'}</div>
   <div class="tabs" role="tablist"><button role="tab" aria-selected="${S.tab==="overview"}" data-a="tab" data-v="overview" class="${S.tab==="overview"?"on":""}">Overview</button>${tabs.map(k=>`<button role="tab" aria-selected="${S.tab===k}" data-a="tab" data-v="${k}" class="${S.tab===k?"on":""}">${esc(KINDS[k].tab)}</button>`).join("")}</div>`;
   if(S.tab==="overview")h+=renderOverview(b);
   else if(S.tab==="activity")h+=renderActivity(b.id);
@@ -374,14 +389,14 @@ function render(){
   }
   const hadFocus=document.activeElement&&document.activeElement.id==="q",pos=hadFocus?document.activeElement.selectionStart:0;
   m.innerHTML=h;
-  if(S.tab==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb:window.osSb,biz:b.id,areas:["Vendors","Pending payments","Parties","Pending orders","Follow-ups",...(b.full?["Machine models & pallets","Production","Inward / outward"]:[]),"Remarks","Other"]});
+  if(S.tab==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb:window.osSb,biz:b.id,areas:["Vendors","Pending payments","Parties","Pending orders","Follow-ups",...tabs.filter(k=>["shipment","renewal","machine","production","inout"].includes(k)).map(k=>k==="production"?"Production":KINDS[k].tab),"Remarks","Other"]});
   const on=m.querySelector(".tabs .on");if(on&&on.parentNode.scrollWidth>on.parentNode.clientWidth)on.parentNode.scrollLeft=on.offsetLeft-on.parentNode.offsetLeft-16;
   if(hadFocus&&$("q")){$("q").focus();$("q").setSelectionRange(pos,pos);}
 }
 
 /* ---- add / edit ---- */
 function suggestions(list,biz){
-  const map={party:[["party","name"]],region:[["region","region"]],product:[["product","name"]],machine:[["machine","model"]],maker:[["maker","name"]],marketer:[["region","person"]],pallet:[["pallet","size"]]}[list]||[];
+  const map={party:[["party","name"]],region:[["region","region"]],product:[["product","name"]],machine:[["machine","model"]],maker:[["maker","name"]],marketer:[["region","person"]],pallet:[["pallet","size"]],vendor:[["vendor","name"]]}[list]||[];
   const out=new Set();map.forEach(([k,f])=>rec(biz,k).forEach(r=>r[f]&&out.add(r[f])));
   return [...out].sort();
 }
@@ -393,7 +408,7 @@ function renderModal(){
   if(!M){L.innerHTML="";return;}
   if(M.party){L.innerHTML=partyHTML(M.party);return;}
   const def=KINDS[M.kind];let r=M.id?S.records.find(x=>x.id===M.id)||{}:{};
-  if(M.kind==="biz"&&M.bizId){const b=bizOf(M.bizId);r={...r,name:b.name,note:b.note,screens:b.full?"Full":"Standard"};}
+  if(M.kind==="biz"&&M.bizId){const b=bizOf(M.bizId);r={...r,name:b.name,note:b.note,people:b.people,screens:b.full?"Full":"Standard"};}
   const fresh=!M.id&&!M.bizId;
   const fields=fieldsFor(M.kind,S.biz).filter(f=>!f.calc);
   const input=f=>{
