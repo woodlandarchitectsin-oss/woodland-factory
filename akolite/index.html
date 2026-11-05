@@ -127,7 +127,7 @@ const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["ledgers","Party ledgers"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -301,10 +301,26 @@ function ledgerRows(name){
   rows.forEach(r=>{bal+=r.debit-r.credit;r.balance=bal;});
   return {c,rows,bal};
 }
-function downloadLedger(name){
-  const {rows,bal}=ledgerRows(name),q=v=>{let t=String(v==null?"":v);if(/^[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
-  const c=DB.customers.find(x=>x.name===name)||{};
-  const csv=[[COMPANY.name],[COMPANY.address],[],["Ledger for "+name],...(c.address?[[c.address]]:[]),...(c.gst?[["GST "+c.gst]]:[]),["As on "+today()],[],["Date","Details","Billed (Rs)","Received (Rs)","Balance (Rs)"],...rows.map(r=>[r.date,r.what,r.debit?Math.round(r.debit):"",r.credit?Math.round(r.credit):"",Math.round(r.balance)]),[],["","Balance due","","",Math.round(bal)]].map(r=>r.map(q).join(",")).join("\r\n");
+function vendorLedgerRows(name){
+  const v=DB.vendors.find(x=>x.name===name)||{};let bal=0;
+  const rows=[...DB.payables.filter(r=>r.vendor===name).map(r=>({date:r.date||"",what:"Bill"+(r.bill?" "+r.bill:"")+(r.remarks?" · "+r.remarks:""),debit:Number(r.amount)||0,credit:0})),
+    ...DB.payments.filter(r=>r.payee===name).map(r=>({date:r.date,what:"Payment made"+(r.category?" · "+r.category:""),debit:0,credit:Number(r.amount)||0}))]
+    .sort((a,b)=>a.date.localeCompare(b.date)||b.debit-a.debit);
+  rows.forEach(r=>{bal+=r.debit-r.credit;r.balance=bal;});
+  return {c:v,rows,bal};
+}
+function billLeft(){
+  const out={};
+  [...new Set(DB.payables.map(r=>r.vendor))].forEach(v=>{
+    let paid=DB.payments.filter(p=>p.payee===v).reduce((a,p)=>a+Number(p.amount),0);
+    DB.payables.filter(r=>r.vendor===v).sort((a,b)=>String(a.date||"").localeCompare(b.date||"")).forEach(r=>{const amt=Number(r.amount)||0;if(r.status==="Paid"){out[r.id]={paid:amt,left:0};return;}const use=Math.min(amt,paid);paid-=use;out[r.id]={paid:use,left:amt-use};});
+  });
+  return out;
+}
+function downloadLedger(name,kind){
+  const {rows,bal}=kind==="vendor"?vendorLedgerRows(name):ledgerRows(name),q=v=>{let t=String(v==null?"":v);if(/^[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
+  const c=(kind==="vendor"?DB.vendors:DB.customers).find(x=>x.name===name)||{};
+  const csv=[[COMPANY.name],[COMPANY.address],[],["Ledger for "+name],...(c.address?[[c.address]]:[]),...(c.gst?[["GST "+c.gst]]:[]),["As on "+today()],[],["Date","Details",kind==="vendor"?"Bill (Rs)":"Billed (Rs)",kind==="vendor"?"Paid (Rs)":"Received (Rs)","Balance (Rs)"],...rows.map(r=>[r.date,r.what,r.debit?Math.round(r.debit):"",r.credit?Math.round(r.credit):"",Math.round(r.balance)]),[],["",kind==="vendor"?"Balance Akolite owes":"Balance due","","",Math.round(bal)]].map(r=>r.map(q).join(",")).join("\r\n");
   const u=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"})),a=document.createElement("a");a.href=u;a.download="Ledger-"+name.replace(/[^a-z0-9]+/gi,"-")+"-"+today()+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
 }
 const unpriced=()=>DB.dispatch.filter(r=>dispatchAmount(r)==null);
@@ -368,7 +384,7 @@ inward(){
 },
 customers(){
   const rec=receivables();
-  return head("Customers","Grouped by state",`<button class="btn pri" data-a="add" data-t="customers">Add customer</button>`)+STATES.map(st=>{const rows=rec.filter(x=>x.c.state===st);return panel(esc(st)+" · "+rows.length,tbl(["Customer","Type","Follow-up by","Credit days#","Credit limit#","Billed#","Received#","Balance#","Overdue#",""],rows.map(x=>`<tr><td>${esc(x.c.name)}${Number(x.c.credit_days)>0||Number(x.c.credit_limit)>0?' <span class="pill crit">On credit</span>':""}<div><button class="btn sm" data-a="ledger" data-v="${esc(x.c.name)}">Ledger</button></div></td><td>${esc(x.c.type)}</td><td>${esc(x.c.salesperson)}</td><td class="n">${esc(x.c.credit_days)}</td><td class="n">${inr(x.c.credit_limit)}</td><td class="n">${inr(x.billed)}</td><td class="n">${inr(x.received)}</td><td class="n">${inr(x.balance)}</td><td class="n">${x.overdue?`<span class="pill crit">${inr(x.overdue)}</span>`:"—"}</td><td><button class="btn sm" data-a="edit" data-t="customers" data-id="${x.c.id}">Edit</button></td></tr>`),"No customers in this state yet."));}).join("");
+  return head("Customers","Grouped by state",`<button class="btn pri" data-a="add" data-t="customers">Add customer</button>`)+STATES.map(st=>{const rows=rec.filter(x=>x.c.state===st);return panel(esc(st)+" · "+rows.length,tbl(["Customer","Type","Follow-up by","Credit days#","Credit limit#","Billed#","Received#","Balance#","Overdue#",""],rows.map(x=>`<tr><td>${esc(x.c.name)}${Number(x.c.credit_days)>0||Number(x.c.credit_limit)>0?' <span class="pill crit">On credit</span>':""}<div><button class="btn sm" data-a="ledger" data-k="" data-v="${esc(x.c.name)}">Ledger</button></div></td><td>${esc(x.c.type)}</td><td>${esc(x.c.salesperson)}</td><td class="n">${esc(x.c.credit_days)}</td><td class="n">${inr(x.c.credit_limit)}</td><td class="n">${inr(x.billed)}</td><td class="n">${inr(x.received)}</td><td class="n">${inr(x.balance)}</td><td class="n">${x.overdue?`<span class="pill crit">${inr(x.overdue)}</span>`:"—"}</td><td><button class="btn sm" data-a="edit" data-t="customers" data-id="${x.c.id}">Edit</button></td></tr>`),"No customers in this state yet."));}).join("");
 },
 myleads(){
   const O=DB.orders,lbl=s=>s==="Closed"?"Closed deal":s==="Hot lead"?"Hot lead":"Lead";
@@ -385,11 +401,19 @@ prices(){
   `<div class="note">Each order uses its price group, or the customer's type when no group is chosen: machine manufacturer 15%, agent 20%, end customer 25%. The suggested value is the list rate × the pallet's sq ft × pieces.</div>`;
 },
 ledger(){
-  const {c,rows,bal}=ledgerRows(S.ledger||"");
-  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="customers">Back to customers</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
-  `<div class="tiles">${tile(inr(rows.reduce((a,r)=>a+r.debit,0)),"Billed")}${tile(inr(rows.reduce((a,r)=>a+r.credit,0)),"Received")}${tile(inr(bal),"Balance due",null,bal>0&&(Number(c.credit_days)>0||Number(c.credit_limit)>0))}</div>`+
-  panel("Statement",tbl(["Date","Details","Billed#","Received#","Balance#"],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.what)}</td><td class="n">${r.debit?inr(r.debit):""}</td><td class="n">${r.credit?inr(r.credit):""}</td><td class="n"><b>${inr(r.balance)}</b></td></tr>`),"No priced dispatches or payments for this customer yet."))+
-  `<div class="note">Send this to the customer after each payment and ask them to confirm the balance. Dispatches without a price aren't included.</div>`;
+  const vend=S.ledgerKind==="vendor",{c,rows,bal}=vend?vendorLedgerRows(S.ledger||""):ledgerRows(S.ledger||"");
+  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="ledgers">All party ledgers</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-k="${vend?"vendor":""}" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
+  `<div class="tiles">${tile(inr(rows.reduce((a,r)=>a+r.debit,0)),vend?"Bills":"Billed")}${tile(inr(rows.reduce((a,r)=>a+r.credit,0)),vend?"Paid":"Received")}${tile(inr(bal),vend?"Akolite owes":"Balance due",null,bal>0&&(Number(c.credit_days)>0||Number(c.credit_limit)>0))}</div>`+
+  panel(vend?"Inward ledger":"Outward ledger",tbl(["Date","Details",vend?"Bill#":"Billed#",vend?"Paid#":"Received#","Balance#"],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.what)}</td><td class="n">${r.debit?inr(r.debit):""}</td><td class="n">${r.credit?inr(r.credit):""}</td><td class="n"><b>${inr(r.balance)}</b></td></tr>`),vend?"No bills or payments for this supplier yet.":"No priced dispatches or payments for this customer yet."))+
+  `<div class="note">${vend?"Bills come from Pending payments, and payments from Collections & payments where “Paid to” is this supplier's exact name.":"Send this to the customer after each payment and ask them to confirm the balance. Dispatches without a price aren't included."}</div>`;
+},
+ledgers(){
+  const cust=DB.customers.map(c=>({name:c.name,...ledgerRows(c.name)})),vend=DB.vendors.map(v=>({name:v.name,...vendorLedgerRows(v.name)}));
+  const sum=(a,k)=>a.reduce((t,x)=>t+x.rows.reduce((s,r)=>s+r[k],0),0),row=(x,k)=>`<tr><td><button class="btn sm" data-a="ledger" data-k="${k}" data-v="${esc(x.name)}">${esc(x.name)}</button></td><td class="n">${inr(x.rows.reduce((s,r)=>s+r.debit,0))}</td><td class="n">${inr(x.rows.reduce((s,r)=>s+r.credit,0))}</td><td class="n"><b>${inr(x.bal)}</b></td><td class="n">${x.rows.length}</td></tr>`;
+  return head("Party ledgers","Every transaction with each party, with a running balance")+
+  `<div class="tiles">${tile(inr(cust.reduce((t,x)=>t+x.bal,0)),"Customers owe Akolite")}${tile(inr(vend.reduce((t,x)=>t+x.bal,0)),"Akolite owes suppliers")}</div>`+
+  panel("Outward · customers · "+cust.length,tbl(["Customer","Billed#","Received#","Balance#","Entries#"],cust.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"")),"No customers yet."))+
+  panel("Inward · suppliers · "+vend.length,tbl(["Supplier","Bills#","Paid#","Balance#","Entries#"],vend.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"vendor")),"No suppliers yet. Add them under Vendors."));
 },
 rates(){
   const rows=DB.inward.filter(r=>Number(r.amount)>0&&baseQty(r)>0).map(r=>({...r,rate:Number(r.amount)/baseQty(r)})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -445,11 +469,11 @@ orders(){
 },
 vendors(){
   const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
-  return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
+  return head("Vendors","Suppliers of raw material and services",`<button class="btn pri" data-a="add" data-t="vendors">Add vendor</button>`)+panel("Vendors · "+rows.length,tbl(["Vendor","Type","State","Contact","Phone","GST","Terms","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.name)}<div><button class="btn sm" data-a="ledger" data-k="vendor" data-v="${esc(r.name)}">Ledger</button></div></td><td>${esc(r.type)}</td><td>${esc(r.state)}</td><td>${esc(r.contact)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.gst)}</td><td>${esc(r.terms)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="vendors" data-id="${r.id}">Edit</button></td></tr>`),"No vendors yet. Add one, or upload a vendor list."));
 },
 payables(){
-  const T=today(),rows=[...DB.payables].sort((x,y)=>(x.status==="Paid")-(y.status==="Paid")||String(x.due||"9").localeCompare(y.due||"9")),open=rows.filter(r=>r.status!=="Paid"),late=open.filter(r=>r.due&&r.due<T),sum=a=>a.reduce((t,r)=>t+Number(r.amount),0);
-  return head("Pending payments","What Akolite owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td><span class="pill ${r.status==="Paid"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
+  const T=today(),BL=billLeft(),left=r=>(BL[r.id]||{left:Number(r.amount)}).left,rows=[...DB.payables].sort((x,y)=>(x.status==="Paid"||left(x)<=0)-(y.status==="Paid"||left(y)<=0)||String(x.due||"9").localeCompare(y.due||"9")),open=rows.filter(r=>r.status!=="Paid"&&left(r)>0),late=open.filter(r=>r.due&&r.due<T),sum=a=>a.reduce((t,r)=>t+left(r),0);
+  return head("Pending payments","What Akolite owes its vendors",`<button class="btn pri" data-a="add" data-t="payables">Add bill</button>`)+`<div class="tiles">${tile(inr(sum(open)),"Total pending")}${tile(inr(sum(late)),"Overdue",null,late.length>0)}${tile(open.length,"Open bills")}</div>`+panel("Bills",tbl(["Vendor","Bill no.","Bill date","Due","Amount#","Paid so far#","Left#","Status","Remarks","Entered by",""],rows.map(r=>`<tr><td>${esc(r.vendor)}</td><td>${esc(r.bill)}</td><td class="nw">${fmtD(r.date)}</td><td class="nw">${fmtD(r.due)}${r.status!=="Paid"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td class="n">${inr(r.amount)}</td><td class="n">${inr((BL[r.id]||{}).paid||0)}</td><td class="n"><b>${inr(left(r))}</b></td><td><span class="pill ${r.status==="Paid"||left(r)<=0?"ok":"warn"}">${r.status!=="Paid"&&left(r)<=0?"Paid in full":esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payables" data-id="${r.id}">Edit</button></td></tr>`),"No pending payments yet. Add a bill, or upload a list."));
 },
 documents(){return head("Upload documents","Send a photo, PDF or sheet for Claude to read")+'<div id="docsHost"></div>';},
 check(){
@@ -515,7 +539,7 @@ const FORMS={
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"supplier",l:"Supplier"},{k:"qty",l:"Quantity (sq ft for veneer, kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"}]},
   customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"address",l:"Bill address"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
   collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
-  payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to",req:1},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
+  payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to (supplier's exact name, for its ledger)",req:1,dl:()=>DB.vendors.map(v=>v.name)},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
   counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
 };
 const formFields=t=>FORMS[t].f().filter(f=>!f.admin||isAdmin());
@@ -525,6 +549,7 @@ function renderModal(){
   const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
   const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
     if(f.o)return `<select id="${id}">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    if(f.dl)return `<input id="${id}" list="${id}-l" value="${esc(v)}" ${f.req?"required":""} autocomplete="off"><datalist id="${id}-l">${f.dl().map(o=>`<option value="${esc(o)}">`).join("")}</datalist>`;
     return `<input id="${id}" type="${f.t||"text"}" ${f.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${esc(v)}" ${f.req?"required":""} autocomplete="off">`;};
   L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}"><h2>${M.id?"Edit":"Add"} ${esc(FORMS[M.t].one)}</h2>
   <div class="form">${formFields(M.t).map(f=>`<label>${esc(f.l)}${f.req?" *":""}${ctl(f)}</label>`).join("")}</div><div class="calc" id="calc"></div><div class="err" id="ferr" role="alert"></div>
@@ -566,15 +591,15 @@ function render(){
   const nav=NAV[S.user.role],od=receivables().filter(x=>x.overdue>0).length;
   if(!nav.some(n=>n[0]===S.view)&&!(S.view==="ledger"&&isAdmin()))S.view=nav[0][0];
   const main=V[S.view]();
-  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore · Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="customers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore · Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="ledgers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
   if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Leads & orders","Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
 document.addEventListener("click",e=>{
   const el=e.target.closest("[data-a]");if(!el)return;const a=el.dataset.a;
   if(a==="closebg"){if(!e.target.closest("[data-stop]")){S.modal=null;renderModal();}return;}
   if(a==="view"){S.view=el.dataset.v;render();window.scrollTo(0,0);}
-  else if(a==="ledger"){S.ledger=el.dataset.v;S.view="ledger";render();window.scrollTo(0,0);}
-  else if(a==="ledgercsv"){downloadLedger(el.dataset.v);}
+  else if(a==="ledger"){S.ledger=el.dataset.v;S.ledgerKind=el.dataset.k||"";S.view="ledger";render();window.scrollTo(0,0);}
+  else if(a==="ledgercsv"){downloadLedger(el.dataset.v,el.dataset.k);}
   else if(a==="print"){window.print();}
   else if(a==="editprices"){S.editPrices=true;render();}
   else if(a==="cancelprices"){S.editPrices=false;render();}
