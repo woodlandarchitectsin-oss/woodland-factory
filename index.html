@@ -213,6 +213,7 @@ async function startSession(uid){
   const {data,error}=await sb.from("profiles").select("name,role,active").eq("id",uid).maybeSingle();
   if(error)throw error;
   if(!data||!data.active){await sb.auth.signOut();S.err="This login isn't active. Ask an admin to set it up.";S.user=null;return false;}
+  if(!NAV[data.role]){await sb.auth.signOut();S.err="This login doesn't have Woodland access. Ask an admin.";S.user=null;return false;}
   S.user=data;S.view=NAV[data.role][0][0];
   await loadData();listen();
   return true;
