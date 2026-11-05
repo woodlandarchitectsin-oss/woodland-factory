@@ -142,7 +142,7 @@ const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6,rate_card:null}});
+const EMPTY=()=>({party_entries:[],production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6,rate_card:null}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
@@ -169,7 +169,7 @@ async function loadData(){
     const [prod,dis,prices,inw,cust,col,pay,cnt,set,log]=await Promise.all([fetchAll("production"),fetchAll("dispatch"),fetchAll("dispatch_prices"),fetchAll("inward"),fetchAll("customers"),fetchAll("collections"),fetchAll("payments"),fetchAll("counts"),fetchAll("settings"),sb.from("audit_log").select("*").order("id",{ascending:false}).limit(200)]);
     const pm={};prices.forEach(p=>{pm[p.id]=p;});
     d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
-    d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
+    d.inward=inw.map(stampBy);d.party_entries=(await fetchAll("party_entries")).map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
     for(const t of ["orders","marketers","makers","machines","pallet_sizes","followups","remarks"])d[t]=(await fetchAll(t)).map(stampBy);
     d.factory_reports=(await fetchAll("factory_reports")).map(stampBy);d.vendors=(await fetchAll("vendors")).map(stampBy);d.payables=(await fetchAll("payables")).map(stampBy);
     if(set[0])d.settings=set[0];
@@ -240,6 +240,7 @@ function summary(t,r){
   if(t==="inward")return [r.factory,r.item,num(r.qty)].join(" · ");
   if(t==="customers")return r.name;
   if(t==="collections")return r.customer+" · "+inr(r.amount);
+  if(t==="party_entries")return r.customer+" · "+r.kind+(r.part?" ("+r.part+")":"")+" · "+inr(r.amount);
   if(t==="payments")return r.payee+" · "+inr(r.amount);
   if(t==="orders")return r.party+" · "+(r.status||"")+(r.qty?" · "+num(r.qty)+" pieces":"");
   if(t==="marketers")return r.region+" · "+(r.person||"");
@@ -279,10 +280,10 @@ function autoUse(rows){
 const dispatchAmount=r=>r.rate==null||r.rate===""?null:(r.basis==="Per sq ft"?sqft(r)*Number(r.rate):sqmm(r)*Number(r.rate));
 function receivables(){
   return DB.customers.map(c=>{
-    const inv=DB.dispatch.filter(r=>r.customer===c.name&&dispatchAmount(r)!=null).sort((a,b)=>a.date.localeCompare(b.date));
+    const inv=[...DB.dispatch.filter(r=>r.customer===c.name&&dispatchAmount(r)!=null).map(r=>({date:r.date,amt:dispatchAmount(r)})),...DB.party_entries.filter(r=>r.customer===c.name).map(r=>({date:r.date,amt:Number(r.amount)||0}))].sort((a,b)=>a.date.localeCompare(b.date));
     let paid=DB.collections.filter(r=>r.customer===c.name).reduce((a,r)=>a+Number(r.amount),0);
-    const billed=inv.reduce((a,r)=>a+dispatchAmount(r),0);let overdue=0,oldest=null;
-    inv.forEach(r=>{const a=dispatchAmount(r),use=Math.min(a,paid);paid-=use;const left=a-use,due=addDays(r.date,Number(c.credit_days)||0);if(left>0&&due<today()){overdue+=left;if(!oldest)oldest=due;}});
+    const billed=inv.reduce((a,r)=>a+r.amt,0);let overdue=0,oldest=null;
+    inv.forEach(r=>{const a=r.amt,use=Math.min(a,paid);paid-=use;const left=a-use,due=addDays(r.date,Number(c.credit_days)||0);if(left>0&&due<today()){overdue+=left;if(!oldest)oldest=due;}});
     const received=DB.collections.filter(r=>r.customer===c.name).reduce((a,r)=>a+Number(r.amount),0);
     return {c,billed,received,balance:billed-received,overdue,oldest,overLimit:c.credit_limit&&billed-received>c.credit_limit};
   });
@@ -295,9 +296,10 @@ function stockDays(){
 }
 function ledgerRows(name){
   const c=DB.customers.find(x=>x.name===name)||{};let bal=0;
-  const rows=[...DB.dispatch.filter(r=>r.customer===name&&dispatchAmount(r)!=null).map(r=>({date:r.date,what:"Dispatch"+(r.challan?" · challan "+r.challan:"")+" · "+[r.grade,r.thick+" mm",r.size,num(r.sheets)+" pieces"].join(" · "),debit:dispatchAmount(r),credit:0})),
-    ...DB.collections.filter(r=>r.customer===name).map(r=>({date:r.date,what:"Payment received"+(r.mode?" · "+r.mode:""),debit:0,credit:Number(r.amount)}))]
-    .sort((a,b)=>a.date.localeCompare(b.date)||b.debit-a.debit);
+  const rows=[...DB.party_entries.filter(r=>r.customer===name).map(r=>({date:r.date,t:"party_entries",id:r.id,what:(r.kind==="Opening balance"?"Opening balance":"Sales"+(r.part?" · "+r.part.toLowerCase()+" amount":""))+(r.remarks?" · "+r.remarks:""),debit:Number(r.amount)||0,credit:0,first:r.kind==="Opening balance"})),
+    ...DB.dispatch.filter(r=>r.customer===name&&dispatchAmount(r)!=null).map(r=>({date:r.date,what:"Dispatch"+(r.challan?" · challan "+r.challan:"")+" · "+[r.grade,r.thick+" mm",r.size,num(r.sheets)+" pieces"].join(" · "),debit:dispatchAmount(r),credit:0})),
+    ...DB.collections.filter(r=>r.customer===name).map(r=>({date:r.date,t:"collections",id:r.id,what:"Payment received"+(r.mode?" · "+r.mode:""),debit:0,credit:Number(r.amount)}))]
+    .sort((a,b)=>(b.first?1:0)-(a.first?1:0)||a.date.localeCompare(b.date)||b.debit-a.debit);
   rows.forEach(r=>{bal+=r.debit-r.credit;r.balance=bal;});
   return {c,rows,bal};
 }
@@ -402,9 +404,9 @@ prices(){
 },
 ledger(){
   const vend=S.ledgerKind==="vendor",{c,rows,bal}=vend?vendorLedgerRows(S.ledger||""):ledgerRows(S.ledger||"");
-  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="ledgers">${vend?"Back to inward ledgers":"Back to outward ledgers"}</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-k="${vend?"vendor":""}" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
+  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="ledgers">${vend?"Back to inward ledgers":"Back to outward ledgers"}</button>${vend?"":`<button class="btn" data-a="add" data-t="party_entries">Add sale or opening balance</button><button class="btn" data-a="add" data-t="collections">Add payment received</button>`}<button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-k="${vend?"vendor":""}" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
   `<div class="tiles">${tile(inr(rows.reduce((a,r)=>a+r.debit,0)),vend?"Bills":"Billed")}${tile(inr(rows.reduce((a,r)=>a+r.credit,0)),vend?"Paid":"Received")}${tile(inr(bal),vend?"Akolite owes":"Balance due",null,bal>0&&(Number(c.credit_days)>0||Number(c.credit_limit)>0))}</div>`+
-  panel(vend?"Inward ledger":"Outward ledger",tbl(["Date","Details",vend?"Bill#":"Billed#",vend?"Paid#":"Received#","Balance#"],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.what)}</td><td class="n">${r.debit?inr(r.debit):""}</td><td class="n">${r.credit?inr(r.credit):""}</td><td class="n"><b>${inr(r.balance)}</b></td></tr>`),vend?"No bills or payments for this supplier yet.":"No priced dispatches or payments for this customer yet."))+
+  panel(vend?"Inward ledger":"Outward ledger",tbl(["Date","Details",vend?"Bill#":"Billed#",vend?"Paid#":"Received#","Balance#",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}${String(r.date).slice(0,4)!==today().slice(0,4)?" "+String(r.date).slice(0,4):""}</td><td>${esc(r.what)}</td><td class="n">${r.debit?inr(r.debit):""}</td><td class="n">${r.credit?inr(r.credit):""}</td><td class="n"><b>${inr(r.balance)}</b></td><td>${r.t?`<button class="btn sm" data-a="edit" data-t="${r.t}" data-id="${r.id}">Edit</button>`:""}</td></tr>`),vend?"No bills or payments for this supplier yet.":"No priced dispatches or payments for this customer yet."))+
   `<div class="note">${vend?"Bills come from Pending payments, and payments from Collections & payments where “Paid to” is this supplier's exact name.":"Send this to the customer after each payment and ask them to confirm the balance. Dispatches without a price aren't included."}</div>`;
 },
 ledgers(){
@@ -540,6 +542,7 @@ const FORMS={
   dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"supplier",l:"Supplier"},{k:"qty",l:"Quantity (sq ft for veneer, kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"}]},
   customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"address",l:"Bill address"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
+  party_entries:{one:"sale or opening balance",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames(),req:1},{k:"kind",l:"Entry",o:["Sale","Opening balance"]},{k:"part",l:"Bill or cash amount",o:["","Bill","Cash"]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"remarks",l:"Remarks"}]},
   collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
   payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to (supplier's exact name, for its ledger)",req:1,dl:()=>DB.vendors.map(v=>v.name)},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
   counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
