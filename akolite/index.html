@@ -115,11 +115,19 @@ const RAW=["Core veneer","Face veneer","Resin","Craft paper","Film","Rosewood pa
 const RAW_UNIT={"Core veneer":"sq ft at 1 mm","Face veneer":"sq ft at 1 mm","Resin":"kg","Craft paper":"as entered","Film":"as entered","Rosewood paper":"as entered","Timber":"as entered"};
 const COMPANY={name:"Akolite Industrial Systems Pvt Ltd",address:"Baikampady Industrial Area, Mangalore, Karnataka",team:"Team led by Mr. Saleem, with Biju, Monaka and Mustafa · Accounts: Ms. Shruthi (Tally)"};
 const STATES=["Rajasthan","Chhattisgarh","Bihar","Odisha","Kerala","Karnataka","Tamil Nadu","Andhra Pradesh","Other"];
-const CTYPES=["Dealer","Contractor","Builder","Carpenter","Boat builder","Direct buyer","Other"];
+const CTYPES=["Machine manufacturer","Agent","End customer","Dealer","Contractor","Builder","Carpenter","Boat builder","Direct buyer","Other"];
+const PRICE_GROUPS=[["15","Machine manufacturer"],["20","Agent"],["25","End customer"]],GROUP_OF={"Machine manufacturer":"15","Agent":"20","End customer":"25"};
+const RATE_THICK=["18","20","25","30"],RATE_DENS=["1","1.1","1.2"];
+const groupOf=r=>r.price_group||GROUP_OF[(DB.customers.find(c=>c.name===r.party)||{}).type]||"";
+const dens=d=>d==null||d===""?"":String(Number(d));
+const listRate=(g,thick,d)=>{const c=(DB.settings.rate_card||{}).groups||{};return ((c[g]||{})[String(Number(thick))]||{})[dens(d)]??null;};
+const FLOOR_GRADE={"Truck-Flooring Panels":"Truck flooring","Chequered Plywood":"Chequered plywood"};
+const floorRate=(grade,thick)=>{const f=((DB.settings.rate_card||{}).flooring||[]).find(x=>x.product===FLOOR_GRADE[grade]&&Number(x.thick)===Number(thick));return f?Number(f.rate):null;};
+const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g+"%)":"";};
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -134,7 +142,7 @@ const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6}});
+const EMPTY=()=>({production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6,rate_card:null}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
@@ -368,6 +376,14 @@ myleads(){
   `<div class="tiles">${tile(O.filter(r=>r.status==="Follow-up").length,"Leads")}${tile(O.filter(r=>r.status==="Hot lead").length,"Hot leads")}${tile(O.filter(r=>r.status==="Closed").length,"Closed deals")}</div>`+
   panel("Leads · "+O.length,tbl(["Party","State","Phone","Machine","Pallet size","Thickness","Pieces#","Status","Added"],O.map(r=>`<tr><td>${esc(r.party)}</td><td>${esc(r.state)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}${r.density?" · "+esc(r.density)+" density":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td><span class="pill ${r.status==="Closed"?"ok":r.status==="Hot lead"?"crit":"warn"}">${lbl(r.status)}</span></td><td class="nw">${fmtD(String(r.entered_at||"").slice(0,10))}</td></tr>`),"No leads yet. Use “Add lead” to send the company a new party."));
 },
+prices(){
+  const card=DB.settings.rate_card||{},G=card.groups||{},edit=S.editPrices;
+  const grid=g=>tbl(["Thickness",...RATE_DENS.map(d=>"Density "+d+"#")],RATE_THICK.map(t=>`<tr><td>${t} mm</td>${RATE_DENS.map(d=>{const v=((G[g]||{})[t]||{})[d];return `<td class="n">${edit?`<input class="rate" data-g="${g}" data-t="${t}" data-d="${d}" type="number" step="any" min="0" value="${v??""}" aria-label="${g}% ${t} mm density ${d}" style="width:90px;text-align:right">`:v==null?"":"₹"+num(v)}</td>`;}).join("")}</tr>`));
+  return head("Price list",(card.date?"Rates as on "+fmtD(card.date)+" · ":"")+"₹ per sq ft. Admins only.",edit?"":`<button class="btn pri" data-a="editprices">Edit prices</button>`)+
+  (edit?`<form id="rateForm"><div class="row" style="margin-bottom:12px"><label>Rates as on <input id="rate-date" type="date" value="${esc(card.date||today())}" required></label><button class="btn pri">Save prices</button><button type="button" class="btn" data-a="cancelprices">Cancel</button></div>`:"")+
+  `<div class="grid2">${PRICE_GROUPS.map(([g,l])=>panel(esc(l)+" · "+g+"%",grid(g))).join("")}${panel("Truck flooring & chequered plywood · full truckload",tbl(["Product","Thickness","Rate#"],(card.flooring||[]).map((f,i)=>`<tr><td>${esc(f.product)}</td><td>${esc(f.thick)} mm</td><td class="n">${edit?`<input class="frate" data-i="${i}" type="number" step="any" min="0" value="${f.rate??""}" aria-label="${esc(f.product)} ${esc(f.thick)} mm" style="width:90px;text-align:right">`:"₹"+num(f.rate)}</td></tr>`),"No rates yet.")+'<div class="note">Rates for smaller quantities are still to come.</div>')}</div>`+(edit?"</form>":"")+
+  `<div class="note">Each order uses its price group, or the customer's type when no group is chosen: machine manufacturer 15%, agent 20%, end customer 25%. The suggested value is the list rate × the pallet's sq ft × pieces.</div>`;
+},
 ledger(){
   const {c,rows,bal}=ledgerRows(S.ledger||"");
   return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="customers">Back to customers</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
@@ -425,7 +441,7 @@ orders(){
   const statusPill=r=>`<span class="pill ${r.status==="Closed"?"ok":r.status==="Hot lead"?"crit":"warn"}">${esc(r.status)}</span>`;
   return head("Leads & orders","From enquiry to quotation, 30% advance, full payment and dispatch",`<button class="btn pri" data-a="add" data-t="orders">Add lead or order</button>`)+
   `<div class="tiles">${tile(O.filter(r=>r.status==="Hot lead").length,"Hot leads")}${tile(O.filter(r=>r.status==="Follow-up").length,"Follow-ups")}${tile(O.filter(orderLate).length,"Late orders (past 21 days)",null,O.some(orderLate))}${tile(O.filter(repeatDue).length,"Repeat orders due")}</div>`+
-  panel("Leads and orders",tbl(["Marketer","Party","GST","Machine","Pallet size","Thickness","Pieces#","Status","Order value#","Received#","Balance#","Ready by","Dispatched","Repeat from","Entered by",""],rows.map(r=>{const b=orderBalance(r),a=advanceDue(r);return `<tr><td class="nw">${esc(r.marketer)}</td><td>${esc(r.party)}</td><td>${esc(r.gst)}</td><td class="nw">${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}${r.density?" · "+esc(r.density)+" density":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td>${statusPill(r)}</td><td class="n">${r.value==null?"":inr(r.value)}</td><td class="n">${r.received==null?"":inr(r.received)}${a>0&&r.status==="Closed"?'<div><span class="pill warn">Advance short</span></div>':""}</td><td class="n">${b==null?"":inr(b)}</td><td class="nw">${fmtD(orderDue(r))}${orderLate(r)?' <span class="pill crit">Late</span>':""}</td><td class="nw">${fmtD(r.dispatched)}</td><td class="nw">${fmtD(repeatOn(r))}${repeatDue(r)?' <span class="pill crit">Contact</span>':""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="orders" data-id="${r.id}">Edit</button></td></tr>`;}),"No leads yet. Add one, or upload a marketer's list."));
+  panel("Leads and orders",tbl(["Marketer","Party","GST","Machine","Pallet size","Thickness","Pieces#","Status","List rate#","Suggested value#","Order value#","Received#","Balance#","Ready by","Dispatched","Repeat from","Entered by",""],rows.map(r=>{const b=orderBalance(r),a=advanceDue(r);return `<tr><td class="nw">${esc(r.marketer)}</td><td>${esc(r.party)}</td><td>${esc(r.gst)}</td><td class="nw">${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}${r.density?" · "+esc(r.density)+" density":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td>${statusPill(r)}</td>${(()=>{const g=groupOf(r),lr=g?listRate(g,r.thick,r.density):null,sv=lr!=null&&r.qty&&area(r.pallet_size)?lr*area(r.pallet_size)*Number(r.qty):null;return `<td class="n">${lr==null?"":"₹"+num(lr)+`<div><small>${esc(g)}%</small></div>`}</td><td class="n">${sv==null?"":inr(sv)}</td>`;})()}<td class="n">${r.value==null?"":inr(r.value)}</td><td class="n">${r.received==null?"":inr(r.received)}${a>0&&r.status==="Closed"?'<div><span class="pill warn">Advance short</span></div>':""}</td><td class="n">${b==null?"":inr(b)}</td><td class="nw">${fmtD(orderDue(r))}${orderLate(r)?' <span class="pill crit">Late</span>':""}</td><td class="nw">${fmtD(r.dispatched)}</td><td class="nw">${fmtD(repeatOn(r))}${repeatDue(r)?' <span class="pill crit">Contact</span>':""}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="orders" data-id="${r.id}">Edit</button></td></tr>`;}),"No leads yet. Add one, or upload a marketer's list."));
 },
 vendors(){
   const rows=[...DB.vendors].sort((x,y)=>String(x.name).localeCompare(y.name));
@@ -484,7 +500,7 @@ function weeklyHTML(){
 const custNames=()=>Api.rows("customers").map(r=>r.name);
 const FORMS={
   leads:{one:"lead",f:()=>[{k:"party",l:"Party name",req:1},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"qty",l:"Pieces required",t:"number"},{k:"remarks",l:"Remarks"}]},
-  orders:{one:"lead or order",f:()=>[{k:"marketer",l:"Marketer",o:["",...DB.marketers.map(r=>r.person).filter(Boolean)]},{k:"party",l:"Party name",req:1},{k:"status",l:"Status",o:["Follow-up","Hot lead","Closed"]},{k:"gst",l:"GST number"},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"qty",l:"Pieces required",t:"number"},{k:"quote_date",l:"Quotation date",t:"date",nodef:1},{k:"confirm_date",l:"Order confirmed on",t:"date",nodef:1},{k:"value",l:"Order value (₹)",t:"number"},{k:"received",l:"Received so far (₹)",t:"number"},{k:"dispatched",l:"Dispatched on",t:"date",nodef:1},{k:"remarks",l:"Remarks"}]},
+  orders:{one:"lead or order",f:()=>[{k:"marketer",l:"Marketer",o:["",...DB.marketers.map(r=>r.person).filter(Boolean)]},{k:"party",l:"Party name",req:1},{k:"status",l:"Status",o:["Follow-up","Hot lead","Closed"]},{k:"gst",l:"GST number"},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"price_group",l:"Price group (blank: from customer type)",o:["",...PRICE_GROUPS.map(p=>p[0])]},{k:"qty",l:"Pieces required",t:"number"},{k:"quote_date",l:"Quotation date",t:"date",nodef:1},{k:"confirm_date",l:"Order confirmed on",t:"date",nodef:1},{k:"value",l:"Order value (₹)",t:"number"},{k:"received",l:"Received so far (₹)",t:"number"},{k:"dispatched",l:"Dispatched on",t:"date",nodef:1},{k:"remarks",l:"Remarks"}]},
   marketers:{one:"marketer",f:()=>[{k:"region",l:"Region",req:1},{k:"person",l:"Marketer"},{k:"phone",l:"Phone"},{k:"product",l:"Product"},{k:"remarks",l:"Remarks"}]},
   makers:{one:"machine maker",f:()=>[{k:"name",l:"Company",req:1},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"remarks",l:"Remarks"}]},
   machines:{one:"machine model",f:()=>[{k:"maker",l:"Company",o:DB.makers.map(r=>r.name)},{k:"model",l:"Machine model",req:1},{k:"use",l:"Makes (block, brick or paver)"},{k:"pallet",l:"Pallet size"},{k:"remarks",l:"Remarks"}]},
@@ -516,9 +532,14 @@ function renderModal(){
   liveCalc();const first=L.querySelector("input,select");if(first)first.focus();
 }
 function liveCalc(){
-  const c=$("calc");if(!c||!S.modal||!["production","dispatch"].includes(S.modal.t))return;
+  const c=$("calc");if(!c||!S.modal)return;
+  if(S.modal.t==="orders"){const r={party:$("f-party").value.trim(),price_group:$("f-price_group").value,thick:$("f-thick").value,density:$("f-density").value,qty:$("f-qty").value,pallet_size:$("f-pallet_size").value};
+    const g=groupOf(r),lr=g&&r.thick&&r.density?listRate(g,r.thick,r.density):null,a=area(r.pallet_size);
+    c.textContent=!g?"Choose a price group, or set the customer's type, to see the list rate.":lr==null?`No list rate for ${r.thick||"?"} mm at density ${r.density||"?"} in the ${g}% group.`:`List rate ${groupLabel(g)}: ₹${num(lr)} per sq ft`+(a&&Number(r.qty)?` · ${num(r.qty)} × ${num(a)} sq ft = ₹${num(Math.round(lr*a*Number(r.qty)))}`:"");return;}
+  if(!["production","dispatch"].includes(S.modal.t))return;
   const r={sheets:$("f-sheets").value,size:$("f-size").value,thick:$("f-thick").value};
-  c.textContent=Number(r.sheets)?`${num(r.sheets)} pieces × ${num(area(r.size))} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"";
+  const fr=S.modal.t==="dispatch"&&$("f-grade")?floorRate($("f-grade").value,r.thick):null;
+  c.textContent=(fr!=null?`Full-truckload list rate: ₹${num(fr)} per sq ft. `:"")+(Number(r.sheets)?`${num(r.sheets)} pieces × ${num(area(r.size))} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"");
 }
 async function saveForm(){
   const M=S.modal,rec=M.id?{id:M.id}:{},btn=document.querySelector("#recForm .btn.pri");
@@ -555,6 +576,8 @@ document.addEventListener("click",e=>{
   else if(a==="ledger"){S.ledger=el.dataset.v;S.view="ledger";render();window.scrollTo(0,0);}
   else if(a==="ledgercsv"){downloadLedger(el.dataset.v);}
   else if(a==="print"){window.print();}
+  else if(a==="editprices"){S.editPrices=true;render();}
+  else if(a==="cancelprices"){S.editPrices=false;render();}
   else if(a==="factory"){S.factory=el.dataset.v;render();}
   else if(a==="logout"){signOut();}
   else if(a==="backup"){downloadBackup();}
@@ -576,6 +599,13 @@ document.addEventListener("submit",async e=>{
     try{if(await startSession(data.user.id)){S.err="";render();mondayReport();}else render();}catch(err){S.err="Signed in, but your data couldn't load. Try again.";S.user=null;render();}
   }
   if(e.target.id==="recForm")saveForm();
+  if(e.target.id==="rateForm"){
+    const groups={};document.querySelectorAll("input.rate").forEach(i=>{if(i.value==="")return;((groups[i.dataset.g]=groups[i.dataset.g]||{})[i.dataset.t]=groups[i.dataset.g][i.dataset.t]||{})[i.dataset.d]=Number(i.value);});
+    const flooring=((DB.settings.rate_card||{}).flooring||[]).map((f,i)=>{const el=document.querySelector(`input.frate[data-i="${i}"]`);return {...f,rate:el&&el.value!==""?Number(el.value):f.rate};});
+    const {error}=await sb.from("settings").update({rate_card:{date:$("rate-date").value,unit:"per sq ft",groups,flooring}}).eq("id",1);
+    if(error){S.banner=friendly(error);render();return;}
+    S.editPrices=false;refresh();return;
+  }
   if(e.target.id==="setForm"){
     const {error}=await sb.from("settings").update({veneer_factor:Number($("s-v").value)||1,resin_per_k:Number($("s-r").value)||0}).eq("id",1);
     if(error){S.banner=friendly(error);render();return;}
