@@ -127,15 +127,17 @@ td.w{min-width:170px}td.act{white-space:nowrap;text-align:right}
 <script src="../docs.js"></script>
 <script>
 /* Saleem OS sign-in and data. Uses the same database and sign-in as the Woodland app, so one login opens both. */
+const ONE_BIZ=["asr","tgf","goldenasia","woodlite","falcon"];
 (function(){
   const CFG=window.WOODLAND_CONFIG,sb=supabase.createClient(CFG.url,CFG.anonKey);window.osSb=sb;
   let me=null,prof=null,ready;
   const signedIn=new Promise(r=>{ready=r;});
   const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   async function enter(uid){
-    const {data}=await sb.from("profiles").select("name,role,active,os_access").eq("id",uid).maybeSingle();
+    const {data}=await sb.from("profiles").select("name,role,active,os_access,os_biz").eq("id",uid).maybeSingle();
     if(!data||!data.active){await sb.auth.signOut();gate("This login isn't active. Ask an admin to set it up.");return;}
-    if(!data.os_access){location.replace("../index.html");return;}
+    if(!data.os_access&&!ONE_BIZ.includes(data.os_biz)){location.replace(data.os_biz==="akosys"?"../akolite/index.html":"../index.html");return;}
+    window.OS_ONLY=data.os_access?"":data.os_biz;
     me=uid;prof=data;const g=document.getElementById("osGate");if(g)g.remove();ready();
     const brand=document.querySelector(".brand");if(brand&&!document.getElementById("osOut")){const b=document.createElement("button");b.id="osOut";b.textContent="Sign out · "+data.name;b.onclick=async()=>{await sb.auth.signOut();location.reload();};brand.after(b);}
   }
@@ -179,20 +181,20 @@ td.w{min-width:170px}td.act{white-space:nowrap;text-align:right}
 
 <script>
 const DEFAULTS=[
-  {id:"woodland",name:"Woodland Ply",note:"Plywood · Woodland and KTR factories",url:"../index.html"},
-  {id:"akosys",name:"Akolite Industrial",note:"Pallets & plywood · Mangalore",full:true,url:"../akolite/index.html"},
-  {id:"asr",name:"ASR Pvt Ltd",note:"Resins"},
-  {id:"tgf",name:"TGF Saudi",note:"Granite · Imported from India, made and sold in Saudi Arabia",tabs:["shipment","product","production","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
-  {id:"goldenasia",name:"Golden Asia",note:"Palm oil · Dubai",people:"Father-in-law's business · Mr. Saleem may join soon",tabs:["shipment","product","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
-  {id:"falcon",name:"Falcon",note:"Plywood & hardware shop · Bangalore",people:"Arshad (face) · Sheebu (investor) · Mr. Saleem",tabs:["product","inout","party","order","followup","vendor","payable","remark","documents","activity"]},
-  {id:"woodlite",name:"Woodlite",note:"Imported face & core veneer trading · Wood sizes planned",people:"Partners: Sheebu · Shafeeq · Khaleel · Mr. Saleem",tabs:["shipment","product","inout","party","order","followup","vendor","payable","remark","documents","activity"]}
+  {id:"akosys",name:"Akolite Industrial",note:"Pallets & plywood · Mangalore",full:true,people:"Run by Biju and Mustafa",url:"../akolite/index.html"},
+  {id:"woodland",name:"Woodland Ply",note:"Plywood · Woodland and KTR factories",people:"Run by Shafeeq and Khaleel",url:"../index.html"},
+  {id:"asr",name:"ASR Pvt Ltd",note:"Resins",people:"Run by Rafeeq bhai · Supplies resin to Akolite"},
+  {id:"tgf",name:"TGF Saudi",note:"Granite · Imported from India, made and sold in Saudi Arabia",people:"Run by Munsif",tabs:["shipment","product","production","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
+  {id:"goldenasia",name:"Golden Asia",note:"Palm oil · Dubai",people:"Father-in-law's business · Run by Rasheed bhai · Mr. Saleem may join soon",tabs:["shipment","product","inout","party","order","followup","vendor","payable","renewal","remark","documents","activity"]},
+  {id:"woodlite",name:"Woodlite",note:"Imported face & core veneer trading · Wood sizes planned",people:"Run by Sheebu · Partners: Sheebu, Shafeeq, Khaleel, Mr. Saleem",tabs:["shipment","product","inout","party","order","followup","vendor","payable","remark","documents","activity"]},
+  {id:"falcon",name:"Falcon",note:"Plywood & hardware shop · Bangalore",people:"Run by Arshad (face) · Sheebu (investor) · Mr. Saleem",tabs:["product","inout","party","order","followup","vendor","payable","remark","documents","activity"]}
 ];
 let BUSINESSES=DEFAULTS;
 function mergeBiz(){
   const over={};S.records.filter(r=>r.kind==="biz").forEach(r=>{over[r.bizId]=r;});
   const list=DEFAULTS.map(b=>{const o=over[b.id];return o?{...b,name:o.name||b.name,note:o.note||b.note,people:o.people||b.people||"",full:o.screens?o.screens==="Full":b.full,rid:o.id}:b;});
   Object.values(over).filter(r=>!DEFAULTS.some(b=>b.id===r.bizId)).forEach(r=>list.push({id:r.bizId,name:r.name,note:r.note||"",people:r.people||"",full:r.screens==="Full",rid:r.id}));
-  return list;
+  return window.OS_ONLY?list.filter(b=>b.id===window.OS_ONLY):list;
 }
 const UNITS=["Nos","CBM","Sq ft","Sq m","Kg","Ton","Litre","Sheet","Bundle","Block","Box"];
 const KINDS={
@@ -278,7 +280,7 @@ function cell(kind,r,f){
 }
 
 function renderNav(){
-  $("nav").innerHTML=`<button data-a="biz" data-v="" class="${S.biz?"":"on"}"><b>All businesses</b><small>Today's picture</small></button>`+BUSINESSES.map(b=>{
+  $("nav").innerHTML=(window.OS_ONLY?"":`<button data-a="biz" data-v="" class="${S.biz?"":"on"}"><b>All businesses</b><small>Today's picture</small></button>`)+BUSINESSES.map(b=>{
     const late=lateFU(b.id).length;
     return `<button data-a="biz" data-v="${b.id}" class="${S.biz===b.id?"on":""}"><b>${esc(b.name)}</b>${b.note?`<small>${esc(b.note)}</small>`:""}${late?`<i>${late}</i>`:""}</button>`;}).join("");
 }
@@ -369,6 +371,7 @@ function tableHTML(kind,biz){
 }
 function render(){
   if(S.biz&&!bizOf(S.biz))S.biz="";
+  if(window.OS_ONLY&&!S.biz&&bizOf(window.OS_ONLY))S.biz=window.OS_ONLY;
   renderNav();
   const m=$("main");
   m.classList.toggle("embed",!!(S.biz&&bizOf(S.biz).url));
@@ -484,7 +487,7 @@ document.addEventListener("click",async e=>{
   if(a==="party"){S.modal={party:el.dataset.v};renderModal();return;}
   if(a==="filter"){S.filter=el.dataset.v;render();return;}
   if(a==="editbiz"){const b=bizOf(S.biz);openForm("biz",b.rid,b.id);return;}
-  if(a==="addbiz"){openForm("biz");return;}
+  if(a==="addbiz"){if(!window.OS_ONLY)openForm("biz");return;}
   if(a==="export"){exportTab();return;}
   if(a==="backup"){backup();return;}
   if(a==="biz"){S.biz=el.dataset.v;S.filter="";S.tab="overview";S.q="";render();window.scrollTo(0,0);}
