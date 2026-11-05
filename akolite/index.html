@@ -402,7 +402,7 @@ prices(){
 },
 ledger(){
   const vend=S.ledgerKind==="vendor",{c,rows,bal}=vend?vendorLedgerRows(S.ledger||""):ledgerRows(S.ledger||"");
-  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="ledgers">All party ledgers</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-k="${vend?"vendor":""}" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
+  return head("Ledger · "+(S.ledger||""),[c.address||c.state,c.gst?"GST "+c.gst:""].filter(Boolean).join(" · "),`<button class="btn" data-a="view" data-v="ledgers">${vend?"Back to inward ledgers":"Back to outward ledgers"}</button><button class="btn" data-a="print">Print</button><button class="btn pri" data-a="ledgercsv" data-k="${vend?"vendor":""}" data-v="${esc(S.ledger||"")}">Download to send</button>`)+
   `<div class="tiles">${tile(inr(rows.reduce((a,r)=>a+r.debit,0)),vend?"Bills":"Billed")}${tile(inr(rows.reduce((a,r)=>a+r.credit,0)),vend?"Paid":"Received")}${tile(inr(bal),vend?"Akolite owes":"Balance due",null,bal>0&&(Number(c.credit_days)>0||Number(c.credit_limit)>0))}</div>`+
   panel(vend?"Inward ledger":"Outward ledger",tbl(["Date","Details",vend?"Bill#":"Billed#",vend?"Paid#":"Received#","Balance#"],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.what)}</td><td class="n">${r.debit?inr(r.debit):""}</td><td class="n">${r.credit?inr(r.credit):""}</td><td class="n"><b>${inr(r.balance)}</b></td></tr>`),vend?"No bills or payments for this supplier yet.":"No priced dispatches or payments for this customer yet."))+
   `<div class="note">${vend?"Bills come from Pending payments, and payments from Collections & payments where “Paid to” is this supplier's exact name.":"Send this to the customer after each payment and ask them to confirm the balance. Dispatches without a price aren't included."}</div>`;
@@ -410,10 +410,12 @@ ledger(){
 ledgers(){
   const cust=DB.customers.map(c=>({name:c.name,...ledgerRows(c.name)})),vend=DB.vendors.map(v=>({name:v.name,...vendorLedgerRows(v.name)}));
   const sum=(a,k)=>a.reduce((t,x)=>t+x.rows.reduce((s,r)=>s+r[k],0),0),row=(x,k)=>`<tr><td><button class="btn sm" data-a="ledger" data-k="${k}" data-v="${esc(x.name)}">${esc(x.name)}</button></td><td class="n">${inr(x.rows.reduce((s,r)=>s+r.debit,0))}</td><td class="n">${inr(x.rows.reduce((s,r)=>s+r.credit,0))}</td><td class="n"><b>${inr(x.bal)}</b></td><td class="n">${x.rows.length}</td></tr>`;
-  return head("Party ledgers","Every transaction with each party, with a running balance")+
-  `<div class="tiles">${tile(inr(cust.reduce((t,x)=>t+x.bal,0)),"Customers owe Akolite")}${tile(inr(vend.reduce((t,x)=>t+x.bal,0)),"Akolite owes suppliers")}</div>`+
-  panel("Outward · customers · "+cust.length,tbl(["Customer","Billed#","Received#","Balance#","Entries#"],cust.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"")),"No customers yet."))+
-  panel("Inward · suppliers · "+vend.length,tbl(["Supplier","Bills#","Paid#","Balance#","Entries#"],vend.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"vendor")),"No suppliers yet. Add them under Vendors."));
+  const side=S.ledgerSide==="outward"?"outward":"inward",bar=`<div class="row" role="group" aria-label="Ledger type">${[["inward","Inward · suppliers"],["outward","Outward · customers"]].map(([k,l])=>`<button class="btn ${side===k?"on":""}" aria-pressed="${side===k}" data-a="ledgerside" data-v="${k}">${l}</button>`).join("")}</div>`;
+  return head("Party ledgers","Every transaction with each party, with a running balance",bar)+(side==="inward"?
+  `<div class="tiles">${tile(inr(vend.reduce((t,x)=>t+x.bal,0)),"Akolite owes suppliers")}${tile(vend.length,"Suppliers")}${tile(vend.filter(x=>x.bal>0).length,"With a balance")}</div>`+
+  panel("Inward · suppliers of material · "+vend.length,tbl(["Supplier","Bills#","Paid#","Balance#","Entries#"],vend.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"vendor")),"No suppliers yet. Add them under Vendors.")):
+  `<div class="tiles">${tile(inr(cust.reduce((t,x)=>t+x.bal,0)),"Customers owe Akolite")}${tile(cust.length,"Customers")}${tile(cust.filter(x=>x.bal>0).length,"With a balance")}</div>`+
+  panel("Outward · customers we supply · "+cust.length,tbl(["Customer","Billed#","Received#","Balance#","Entries#"],cust.sort((a,b)=>b.bal-a.bal).map(x=>row(x,"")),"No customers yet.")));
 },
 rates(){
   const rows=DB.inward.filter(r=>Number(r.amount)>0&&baseQty(r)>0).map(r=>({...r,rate:Number(r.amount)/baseQty(r)})).sort((a,b)=>a.date.localeCompare(b.date));
@@ -598,7 +600,8 @@ document.addEventListener("click",e=>{
   const el=e.target.closest("[data-a]");if(!el)return;const a=el.dataset.a;
   if(a==="closebg"){if(!e.target.closest("[data-stop]")){S.modal=null;renderModal();}return;}
   if(a==="view"){S.view=el.dataset.v;render();window.scrollTo(0,0);}
-  else if(a==="ledger"){S.ledger=el.dataset.v;S.ledgerKind=el.dataset.k||"";S.view="ledger";render();window.scrollTo(0,0);}
+  else if(a==="ledgerside"){S.ledgerSide=el.dataset.v;render();}
+  else if(a==="ledger"){S.ledger=el.dataset.v;S.ledgerKind=el.dataset.k||"";S.ledgerSide=S.ledgerKind==="vendor"?"inward":"outward";S.view="ledger";render();window.scrollTo(0,0);}
   else if(a==="ledgercsv"){downloadLedger(el.dataset.v,el.dataset.k);}
   else if(a==="print"){window.print();}
   else if(a==="editprices"){S.editPrices=true;render();}
