@@ -108,12 +108,13 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 <script src="../docs.js"></script>
 <script>
 const FACTORIES=["Akolite"];
-const GRADES=["Composite Production Pallets","Chequered Plywood","Truck-Flooring Panels","High-Density Plywood","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"];
+const GRADES=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"];
 const GRADE_CODE={"Truck-Flooring Panels":"TF","Chequered Plywood":"CHQ","Composite Production Pallets":"Pallet","High-Density Plywood":"Plain"};
 const FG_ITEMS=["12 mm TF","16 mm TF","19 mm TF","23 mm TF","25 mm TF","30 mm TF","32 mm TF","12 mm CHQ","12 mm CHQ 30kg","16 mm CHQ","18 mm CHQ","25 mm CHQ","12 mm FFS Black","18 mm FFS Black","12 mm Plain","28 mm CB","19 mm ISI","50 mm LVL","12 mm Pallet","18 mm Pallet","20 mm Pallet","22 mm Pallet","25 mm Pallet","28 mm Pallet","30 mm Pallet","40 mm Pallet","50 mm Pallet"];
 const RM_ITEMS=[["Recon face 0.25 mm","Nos"],["Gurjan face 0.30 mm","Nos"],["Rosewood paper","kg"],["BOPP roll","kg"],["Chicken mesh 4 ft","bundles"],["Chicken mesh 3 ft","bundles"],["Veneer","sq ft"],["Resin PF","kg"],["Timber","tonnes"],["Black film","Nos"],["Rosewood film","Nos"],["Kraft paper","kg"],["Biflex","kg"],["Thicker mesh","bundles"]];
 const INWARD_RM={"Core veneer":"Veneer","Face veneer":"Veneer","Resin":"Resin PF","Craft paper":"Kraft paper","Film":"Black film"};
 const MOVES=["Opening","Production","Purchase","Consumption","Sales","Transfer in","Transfer out","Adjustment"],MOVE_SIGN={Opening:0,Production:1,Purchase:1,"Transfer in":1,Adjustment:1,Consumption:-1,Sales:-1,"Transfer out":-1};
+const isPallet=g=>(GRADE_CODE[g]||g)==="Pallet";
 const fgItem=r=>Number(r.thick)+" mm "+(GRADE_CODE[r.grade]||r.grade);
 const rmUnit=i=>(RM_ITEMS.find(x=>x[0]===i)||[])[1]||"";
 const THICK=[4,6,8,9,12,16,18,19,25];
@@ -129,7 +130,7 @@ const RATE_THICK=["18","20","25","30"],RATE_DENS=["1","1.1","1.2"];
 const groupOf=r=>r.price_group||GROUP_OF[(DB.customers.find(c=>c.name===r.party)||{}).type]||"";
 const dens=d=>d==null||d===""?"":String(Number(d));
 const listRate=(g,thick,d)=>{const c=(DB.settings.rate_card||{}).groups||{};return ((c[g]||{})[String(Number(thick))]||{})[dens(d)]??null;};
-const FLOOR_GRADE={"Truck-Flooring Panels":"Truck flooring","Chequered Plywood":"Chequered plywood"};
+const FLOOR_GRADE={"TF":"Truck flooring","CHQ":"Chequered plywood","Truck-Flooring Panels":"Truck flooring","Chequered Plywood":"Chequered plywood"};
 const floorRate=(grade,thick)=>{const f=((DB.settings.rate_card||{}).flooring||[]).find(x=>x.product===FLOOR_GRADE[grade]&&Number(x.thick)===Number(thick));return f?Number(f.rate):null;};
 const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g+"%)":"";};
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
@@ -286,7 +287,7 @@ function autoUse(rows){
   const m=rows.filter(r=>r.stage!=="Opening stock").reduce((a,r)=>a+sqmm(r),0);
   return {veneer:m*(Number(DB.settings.veneer_factor)||1),resin:m/1000*(Number(DB.settings.resin_per_k)||0)};
 }
-const dispatchAmount=r=>r.rate==null||r.rate===""?null:(r.basis==="Per sq ft"?sqft(r)*Number(r.rate):sqmm(r)*Number(r.rate));
+const dispatchAmount=r=>r.rate==null||r.rate===""?null:(r.basis==="Per piece"?(Number(r.sheets)||0)*Number(r.rate):r.basis==="Per sq ft per mm"?sqmm(r)*Number(r.rate):sqft(r)*Number(r.rate));
 function receivables(){
   return DB.customers.map(c=>{
     const inv=[...DB.dispatch.filter(r=>r.customer===c.name&&dispatchAmount(r)!=null).map(r=>({date:r.date,amt:dispatchAmount(r)})),...DB.party_entries.filter(r=>r.customer===c.name).map(r=>({date:r.date,amt:Number(r.amount)||0}))].sort((a,b)=>a.date.localeCompare(b.date));
@@ -410,7 +411,7 @@ production(){
 dispatch(){
   const staff=!isAdmin(),rows=Api.rows("dispatch").filter(inF).filter(r=>!staff||r.date>=addDays(today(),-6)).sort((a,b)=>b.date.localeCompare(a.date));
   return head(staff?"Daily dispatch":"Dispatch",staff?"Enter what left the factory today. Ask an admin to correct a saved entry.":"By customer, grade, thickness and size",(staff?"":factorySwitch())+`<button class="btn pri" data-a="add" data-t="dispatch">Add dispatch</button>`)+
-  panel(staff?"Last 7 days":"Dispatches",tbl(["Date","Factory","Customer","Grade","Thickness","Size","Quality","Pieces#","Sq ft#","Vehicle","Challan","Quality check",...(staff?[]:["Rate#","Amount#"]),"Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td>${esc(r.quality)}</td><td class="n">${num(r.sheets)}</td><td class="n">${num(sqft(r))}</td><td class="nw">${esc(r.vehicle)}</td><td>${esc(r.challan)}</td><td>${qcPill(r)}</td>${staff?"":`<td class="n">${r.rate==null?'<span class="pill warn">Not set</span>':esc(r.rate)}</td><td class="n">${dispatchAmount(r)==null?"":inr(dispatchAmount(r))}</td>`}<td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Edit</button></td>`}</tr>`)));
+  panel(staff?"Last 7 days":"Dispatches",tbl(["Date","Factory","Customer","Grade","Thickness","Size","Quality","Pieces#","Sq ft#","Vehicle","Challan","Quality check",...(staff?[]:["Rate#","Amount#"]),"Entered by",...(staff?[]:[""])],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.factory)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)}</td><td class="nw">${r.thick} mm</td><td>${esc(r.size)}</td><td>${esc(r.quality)}</td><td class="n">${isPallet(r.grade)?"<b>"+num(r.sheets)+"</b>":num(r.sheets)}</td><td class="n">${isPallet(r.grade)?num(sqft(r)):"<b>"+num(sqft(r))+"</b>"}</td><td class="nw">${esc(r.vehicle)}</td><td>${esc(r.challan)}</td><td>${qcPill(r)}</td>${staff?"":`<td class="n">${r.rate==null?'<span class="pill warn">Not set</span>':esc(r.rate)}</td><td class="n">${dispatchAmount(r)==null?"":inr(dispatchAmount(r))}</td>`}<td class="nw">${esc(r.by)}</td>${staff?"":`<td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Edit</button></td>`}</tr>`)));
 },
 inward(){
   const rows=DB.inward.filter(inF).sort((a,b)=>b.date.localeCompare(a.date));
@@ -587,7 +588,7 @@ const FORMS={
   vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
   payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
   production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good pieces",t:"number",req:1},{k:"second",l:"Second-grade pieces",t:"number"},{k:"rejected",l:"Rejected pieces",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
-  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft per mm","Per sq ft"],admin:1}]},
+  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces (TF and CHQ are counted in sq ft from the size)",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft","Per piece","Per sq ft per mm"],admin:1}]},
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RM_ITEMS.map(x=>x[0])},{k:"supplier",l:"Supplier"},{k:"qty",l:"Quantity (sq ft for veneer, kg for resin)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number"},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"}]},
   customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"address",l:"Bill address"},{k:"credit_days",l:"Credit days",t:"number"},{k:"credit_limit",l:"Credit limit (₹)",t:"number"}]},
   stock_moves:{one:"stock entry",f:()=>{const k=(S.modal&&S.modal.k)||(S.modal&&S.modal.id&&(DB.stock_moves.find(r=>r.id===S.modal.id)||{}).kind)||"Finished";return [{k:"date",l:"Date",t:"date",req:1},{k:"kind",l:"Stock",o:[k]},{k:"item",l:k==="Finished"?"Product":"Material",o:k==="Finished"?FG_ITEMS:RM_ITEMS.map(x=>x[0]),req:1},{k:"move",l:"Entry",o:MOVES},{k:"qty",l:k==="Finished"?"Quantity (sq ft)":"Quantity (in the material's unit)",t:"number",req:1},{k:"remarks",l:"Remarks"}];}},
