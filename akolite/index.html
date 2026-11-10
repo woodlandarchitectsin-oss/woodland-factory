@@ -136,7 +136,7 @@ const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["ledgers","Party ledgers"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["ledgers","Party ledgers"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"],["myfollowups","My follow-ups"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -158,7 +158,7 @@ const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
 /* Same screens as Woodland, reading Akolite's own tables. */
 const sb=sb0&&{auth:sb0.auth,storage:sb0.storage,channel:n=>sb0.channel(n),removeChannel:c=>sb0.removeChannel(c),from:t=>sb0.from(t==="profiles"||t==="documents"?t:"ak_"+t),rpc:(f,a)=>sb0.rpc("ak_"+f,a)};
 
-const S={user:null,view:"today",factory:"All",modal:null,err:"",loading:true,banner:""};
+const S={user:null,view:"today",factory:"All",modal:null,err:"",loading:true,banner:"",lastName:(()=>{try{return new URLSearchParams(location.search).get("login")||"";}catch(e){return "";}})()};
 const isAdmin=()=>S.user&&S.user.role==="admin";
 
 /* ---- all data goes through here; the database itself enforces who can see and change what ---- */
@@ -184,7 +184,7 @@ async function loadData(){
     if(set[0])d.settings=set[0];
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
-  }else if(role==="marketer"){const {data,error}=await sb.rpc("my_leads");if(error)throw error;d.orders=data||[];
+  }else if(role==="marketer"){const [l,f]=await Promise.all([sb.rpc("my_leads"),sb.rpc("my_followups")]);if(l.error)throw l.error;if(f.error)throw f.error;d.orders=l.data||[];d.followups=f.data||[];
   }else if(role==="production"){d.production=(await fetchAll("production")).map(stampBy);d.pallet_sizes=await fetchAll("pallet_sizes");}
   else{
     d.dispatch=(await fetchAll("dispatch")).map(stampBy);
@@ -202,8 +202,10 @@ function friendly(e){
   return "This couldn't be saved. Try again, and tell an admin if it keeps happening.";
 }
 const Api={
-  rows(t){return DB[t]||[];},
+  rows(t){return t==="leads"?DB.orders:t==="myfu"?DB.followups:DB[t]||[];},
   async save(t,rec){
+    if(t==="leads"&&rec.id){const {error}=await sb.rpc("set_lead_status",{p_id:rec.id,p_status:rec.status});if(error)throw error;await refresh();return;}
+    if(t==="myfu"){const {error}=rec.id?await sb.rpc("set_followup",{p_id:rec.id,p_status:rec.status||"Open",p_remarks:rec.remarks}):await sb.rpc("add_followup",{p_due:rec.due,p_party:rec.party,p_about:rec.about,p_remarks:rec.remarks});if(error)throw error;await refresh();return;}
     if(t==="leads"){const {error}=await sb.rpc("add_lead",{p_party:rec.party,p_state:rec.state,p_phone:rec.phone,p_machine:rec.machine,p_pallet_size:rec.pallet_size,p_thick:rec.thick,p_density:rec.density,p_qty:rec.qty,p_remarks:rec.remarks});if(error)throw error;await refresh();return;}
     const {id,rate,basis,...row}=rec;let rid=id;
     if(id){const {error}=await sb.from(t).update(row).eq("id",id);if(error)throw error;}
@@ -425,7 +427,13 @@ myleads(){
   const O=DB.orders,lbl=s=>s==="Closed"?"Closed deal":s==="Hot lead"?"Hot lead":"Lead";
   return head("My leads","The parties you've brought to Akolite. The company handles prices and closes the deal.",`<button class="btn pri" data-a="add" data-t="leads">Add lead</button>`)+
   `<div class="tiles">${tile(O.filter(r=>r.status==="Follow-up").length,"Leads")}${tile(O.filter(r=>r.status==="Hot lead").length,"Hot leads")}${tile(O.filter(r=>r.status==="Closed").length,"Closed deals")}</div>`+
-  panel("Leads · "+O.length,tbl(["Party","State","Phone","Machine","Pallet size","Thickness","Pieces#","Status","Added"],O.map(r=>`<tr><td>${esc(r.party)}</td><td>${esc(r.state)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}${r.density?" · "+esc(r.density)+" density":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td><span class="pill ${r.status==="Closed"?"ok":r.status==="Hot lead"?"crit":"warn"}">${lbl(r.status)}</span></td><td class="nw">${fmtD(String(r.entered_at||"").slice(0,10))}</td></tr>`),"No leads yet. Use “Add lead” to send the company a new party."));
+  panel("Leads · "+O.length,tbl(["Party","State","Phone","Machine","Pallet size","Thickness","Pieces#","Status","Added",""],O.map(r=>`<tr><td>${esc(r.party)}</td><td>${esc(r.state)}</td><td class="nw">${esc(r.phone)}</td><td>${esc(r.machine)}</td><td class="nw">${esc(r.pallet_size)}</td><td class="nw">${r.thick?esc(r.thick)+" mm":""}${r.density?" · "+esc(r.density)+" density":""}</td><td class="n">${r.qty==null?"":num(r.qty)}</td><td><span class="pill ${r.status==="Closed"?"ok":r.status==="Hot lead"?"crit":"warn"}">${lbl(r.status)}</span></td><td class="nw">${fmtD(String(r.entered_at||"").slice(0,10))}</td><td>${r.status==="Closed"?"":`<button class="btn sm" data-a="edit" data-t="leads" data-id="${r.id}">Change status</button>`}</td></tr>`),"No leads yet. Use “Add lead” to send the company a new party."));
+},
+myfollowups(){
+  const F=DB.followups,T=today(),open=F.filter(r=>r.status!=="Done");
+  return head("My follow-ups","Calls and visits to make for your leads",`<button class="btn pri" data-a="add" data-t="myfu">Add follow-up</button>`)+
+  `<div class="tiles">${tile(open.length,"Open")}${tile(open.filter(r=>r.due&&r.due<T).length,"Late",null,open.some(r=>r.due&&r.due<T))}${tile(F.length-open.length,"Done")}</div>`+
+  panel("Follow-ups · "+F.length,tbl(["Follow up on","Party","About","Status","Remarks",""],[...F].sort((a,b)=>(a.status==="Done")-(b.status==="Done")||String(a.due||"9").localeCompare(b.due||"9")).map(r=>`<tr><td class="nw">${fmtD(r.due)}${r.status!=="Done"&&r.due&&r.due<T?' <span class="pill crit">Late</span>':""}</td><td>${esc(r.party)}</td><td>${esc(r.about)}</td><td><span class="pill ${r.status==="Done"?"ok":"warn"}">${esc(r.status)}</span></td><td>${esc(r.remarks)}</td><td><button class="btn sm" data-a="edit" data-t="myfu" data-id="${r.id}">Update</button></td></tr>`),"No follow-ups yet. Use “Add follow-up” to plan your next call."));
 },
 prices(){
   const card=DB.settings.rate_card||{},G=card.groups||{},edit=S.editPrices;
@@ -576,7 +584,8 @@ function stockView(kind){
 /* ---- forms ---- */
 const custNames=()=>Api.rows("customers").map(r=>r.name);
 const FORMS={
-  leads:{one:"lead",f:()=>[{k:"party",l:"Party name",req:1},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"qty",l:"Pieces required",t:"number"},{k:"remarks",l:"Remarks"}]},
+  myfu:{one:"follow-up",f:()=>S.modal&&S.modal.id?[{k:"status",l:"Status",o:["Open","Done"]},{k:"remarks",l:"Remarks"}]:[{k:"due",l:"Follow up on",t:"date",req:1},{k:"party",l:"Party",o:["",...DB.orders.map(r=>r.party)]},{k:"about",l:"About",req:1},{k:"remarks",l:"Remarks"}]},
+  leads:{one:"lead",f:()=>S.modal&&S.modal.id?[{k:"status",l:"Status",o:["Follow-up","Hot lead"]}]:[{k:"party",l:"Party name",req:1},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"qty",l:"Pieces required",t:"number"},{k:"remarks",l:"Remarks"}]},
   orders:{one:"lead or order",f:()=>[{k:"marketer",l:"Marketer",o:["",...DB.marketers.map(r=>r.person).filter(Boolean)]},{k:"party",l:"Party name",req:1},{k:"status",l:"Status",o:["Follow-up","Hot lead","Closed"]},{k:"gst",l:"GST number"},{k:"state",l:"State"},{k:"phone",l:"Phone"},{k:"machine",l:"Machine model"},{k:"pallet_size",l:"Pallet size (e.g. 900x550)"},{k:"thick",l:"Thickness (mm)",t:"number"},{k:"density",l:"Density",o:["","0.95","1.0","1.1","1.2"]},{k:"price_group",l:"Price group (blank: from customer type)",o:["",...PRICE_GROUPS.map(p=>p[0])]},{k:"qty",l:"Pieces required",t:"number"},{k:"quote_date",l:"Quotation date",t:"date",nodef:1},{k:"confirm_date",l:"Order confirmed on",t:"date",nodef:1},{k:"value",l:"Order value (₹)",t:"number"},{k:"received",l:"Received so far (₹)",t:"number"},{k:"dispatched",l:"Dispatched on",t:"date",nodef:1},{k:"remarks",l:"Remarks"}]},
   marketers:{one:"marketer",f:()=>[{k:"region",l:"Region",req:1},{k:"person",l:"Marketer"},{k:"phone",l:"Phone"},{k:"product",l:"Product"},{k:"remarks",l:"Remarks"}]},
   makers:{one:"machine maker",f:()=>[{k:"name",l:"Company",req:1},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"remarks",l:"Remarks"}]},
