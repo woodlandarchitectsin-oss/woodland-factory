@@ -343,7 +343,8 @@ function receivables(){
   });
 }
 const Q_PRODUCTS=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"],Q_TERMS="Rates are per sq ft, ex-works Baikampady, Mangalore.\n30% advance with the order; balance before dispatch.\nDelivery: 21 working days from order confirmation.\nGST extra as shown.";
-const qGroup=q=>q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";
+const qGroupSet=q=>q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";
+const qGroup=q=>qGroupSet(q)||"25";
 function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(l.rate==null||l.rate===""||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);l.rate=r??null;l.auto=r!=null;});return q;}
 const qLine=l=>{const sq=(Number(l.pieces)||0)*area(l.size||"");return {sq,amt:sq*(Number(l.rate)||0)};};
 const qTotals=q=>{const sub=(q.items||[]).reduce((a,l)=>a+qLine(l).amt,0),gst=sub*(Number(q.gst_pct)||0)/100;return {sub,gst,total:sub+gst};};
@@ -694,7 +695,7 @@ function quoteModal(M){
     <td class="n"><input class="qi" data-i="${i}" data-k="rate" type="number" step="any" min="0" value="${esc(l.rate??"")}" style="width:80px"></td>
     <td class="n">${num(c.sq)}</td><td class="n">${inr(c.amt)}</td><td><button type="button" class="btn sm" data-a="qdel" data-i="${i}">Remove</button></td></tr>`;}).join("")}</tbody></table></div>
   <div class="row" style="margin:10px 0"><button type="button" class="btn" data-a="qadd">Add item</button><button type="button" class="btn" data-a="qfill">Fill empty rates from the price list</button></div>
-  <div class="sub" style="margin:6px 0">${qGroup(q)?"Rates come from the price list for "+esc(groupLabel(qGroup(q)))+". Pallets need thickness and density. A rate you type yourself is kept.":"Choose a price group, or give the customer a type, to fill pallet rates. Truck flooring and chequered plywood use the full-truckload rates."}</div><div class="calc">Subtotal ${inr(T.sub)} · GST ${num(Number(q.gst_pct)||0)}% ${inr(T.gst)} · <b>Total ${inr(T.total)}</b></div>
+  <div class="sub" style="margin:6px 0">${qGroupSet(q)?"Rates come from the price list for "+esc(groupLabel(qGroup(q)))+".":"The customer has no type yet, so the price list for "+esc(groupLabel("25"))+" is used. Change the price group, or set the customer's type, if that is not right."} Pallets need thickness and density. A rate you type yourself is kept. Truck flooring and chequered plywood use the full-truckload rates.</div><div class="calc">Subtotal ${inr(T.sub)} · GST ${num(Number(q.gst_pct)||0)}% ${inr(T.gst)} · <b>Total ${inr(T.total)}</b></div>
   <label style="display:block;margin-top:10px">Terms<textarea id="q-notes" rows="4" style="width:100%">${esc(q.notes||"")}</textarea></label>
   <div class="err" id="ferr" role="alert"></div>
   <div class="actions"><button class="btn pri">Save</button><button type="button" class="btn" data-a="close">Cancel</button>${q.id?`<button type="button" class="btn" data-a="printquote" data-id="${q.id}">Print</button>`:""}</div></form></div>`;
@@ -844,7 +845,7 @@ document.addEventListener("click",e=>{
   else if(a==="printquote"){if(S.modal&&S.modal.q)readQuote();const q=S.modal&&S.modal.q&&S.modal.q.id===el.dataset.id?S.modal.q:DB.quotations.find(x=>x.id===el.dataset.id);if(q)printQuote(q);}
   else if(a==="qadd"){readQuote().items.push({product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null});renderModal();}
   else if(a==="qdel"){readQuote().items.splice(Number(el.dataset.i),1);renderModal();}
-  else if(a==="qfill"){const q=readQuote(),g=q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";q.items.forEach(l=>{if(l.rate!=null&&l.rate!=="")return;const r=l.product==="Pallet"?(g&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);if(r!=null)l.rate=r;});renderModal();if(!g&&q.items.some(l=>l.product==="Pallet"))$("ferr").textContent="Choose a price group, or set the customer's type, to fill pallet rates.";}
+  else if(a==="qfill"){const q=readQuote(),g=qGroup(q);q.items.forEach(l=>{if(l.rate!=null&&l.rate!=="")return;const r=l.product==="Pallet"?(g&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);if(r!=null)l.rate=r;});renderModal();if(!g&&q.items.some(l=>l.product==="Pallet"))$("ferr").textContent="Choose a price group, or set the customer's type, to fill pallet rates.";}
   else if(a==="csv"){exportScreen();}
   else if(a==="qviewclose"){if(history.state&&history.state.qv)history.back();else closeQView();}
   else if(a==="qprint"){window.print();}
