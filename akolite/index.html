@@ -115,7 +115,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 #qview .who2{display:flex;gap:14px;align-items:center}#qview .who2 img{height:76px}#qview .qno{text-align:right}
 #qview .tw{overflow-x:auto}#qview table{width:100%;border-collapse:collapse;margin:16px 0}#qview th,#qview td{border:1px solid #bbb;padding:6px 8px;text-align:left;white-space:nowrap}
 #qview th{background:rgba(0,0,0,.05)}#qview .n{text-align:right}#qview .tot td{font-weight:600}#qview pre{font:inherit;white-space:pre-wrap;margin:0}#qview .warnq{color:#b00020;font-weight:600}
-#qview .tot td{background:#fff}#qview .sign{margin-top:36px;line-height:1.4}#qview .sign img{height:72px;display:block;margin:6px 0 2px}
+#qview .tot td{background:#fff}#qview .th{font-weight:700;text-decoration:underline;margin:22px 0 8px}#qview .terms{width:auto;margin:0}#qview .terms td{border:0;padding:1px 14px 1px 0;white-space:normal;vertical-align:top}#qview .terms tr.b td{font-weight:700}#qview .vnote{font-weight:700;margin:14px 0}#qview .bank{display:inline-block;border:1px solid #444;background:#fde9dc;padding:8px 12px;margin:14px 0;line-height:1.6}#qview .sign{margin-top:36px;line-height:1.4}#qview .sign img{height:72px;display:block;margin:6px 0 2px}
 @media (max-width:600px){#qview{padding:0 10px 32px}#qview table{font-size:10.5px}#qview th,#qview td{padding:4px 3px;white-space:normal}#qview .who2 img{height:56px}#qview h1{font-size:17px}}
 @media print{body.hasq>*:not(#qview){display:none!important}#qview{position:static;overflow:visible;padding:0}#qview .bar{display:none}#qview .tw{overflow:visible}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
@@ -343,7 +343,7 @@ function receivables(){
     return {c,billed,received,balance:billed-received,overdue,oldest,overLimit:c.credit_limit&&billed-received>c.credit_limit};
   });
 }
-const Q_PRODUCTS=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"],Q_TERMS="Rates are per sq ft, ex-works Baikampady, Mangalore.\n30% advance with the order; balance before dispatch.\nDelivery: 21 working days from order confirmation.\nGST extra as shown.";
+const Q_PRODUCTS=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"],Q_TERMS="PRICES : Ex Factory Mangalore\nDUTIES & TAXES : GST Extra\nFREIGHT : Extra\nPAYMENT : 50% Advance and 50% on the day of dispatch\nDELIVERY : 15 Days from the date of your PO & Advances";
 const qGroupSet=q=>q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";
 const qGroup=q=>qGroupSet(q)||"25";
 function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(l.rate==null||l.rate===""||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);l.rate=r??null;l.auto=r!=null;});return q;}
@@ -709,6 +709,12 @@ function readQuote(){
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
 const SIGNER="Ahamed Saleem";
+const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
+const termRows=q=>String(q.notes||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^([^:]{2,24}?)\s*:\s*(.+)$/);return m?{label:m[1].trim(),value:m[2].trim(),strong:/^(PAYMENT|DELIVERY)$/i.test(m[1].trim())}:{text:l};});
+function termsHTML(q){
+  const rows=termRows(q).map(r=>r.text?`<tr><td colspan="2">${esc(r.text)}</td></tr>`:`<tr${r.strong?' class="b"':""}><td>${esc(r.label)}</td><td>: ${esc(r.value)}</td></tr>`).join("");
+  return `<div class="tc"><p class="th">TERMS AND CONDITIONS:</p><table class="terms">${rows}</table><p class="vnote">NOTE – THIS QUOTATION IS VALID FOR ${esc(String(q.validity||"7 days").toUpperCase())}, SUBJECT TO MARKET CONDITION</p></div><div class="bank"><b><u>BANK DETAILS</u></b><br><b>A/C No: ${BANK.ac}</b><br><b>IFSC Code: ${BANK.ifsc}</b><br><b>Branch: ${BANK.branch}</b></div><p>${CLOSING[0]}</p><p>${CLOSING[1]}</p>`;
+}
 function quoteDocHTML(q){
   const T=qTotals(q),rate=l=>l.rate==null||l.rate===""?"—":"₹"+num(l.rate);
   const rows=(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr><td>${i+1}</td><td>${esc(l.product)}${l.density?" · density "+esc(l.density):""}</td><td>${esc(l.thick)} mm</td><td>${esc(l.size)}</td><td class="n">${num(l.pieces)}</td><td class="n">${num(c.sq)}</td><td class="n">${rate(l)}</td><td class="n">${l.rate==null||l.rate===""?"—":inr(c.amt)}</td></tr>`;}).join("");
@@ -717,7 +723,7 @@ function quoteDocHTML(q){
   <div class="tw"><table><thead><tr><th>#</th><th>Product</th><th>Thickness</th><th>Size</th><th class="n">Pieces</th><th class="n">Sq ft</th><th class="n">Rate / sq ft</th><th class="n">Amount</th></tr></thead><tbody>${rows}
   <tr class="tot"><td colspan="7" class="n">Subtotal</td><td class="n">${inr(T.sub)}</td></tr><tr class="tot"><td colspan="7" class="n">GST ${num(Number(q.gst_pct)||0)}%</td><td class="n">${inr(T.gst)}</td></tr><tr class="tot"><td colspan="7" class="n">Total</td><td class="n">${inr(T.total)}</td></tr></tbody></table></div>
   ${(q.items||[]).some(l=>l.rate==null||l.rate==="")?`<p class="warnq">Some items have no rate yet (shown as —). Choose the price group, or enter the rate, before sending.</p>`:""}
-  ${q.notes?`<p><b>Terms</b></p><pre>${esc(q.notes)}</pre>`:""}<div class="sign">For ${esc(COMPANY.name)}${DB.signature?`<img src="${DB.signature}" alt="Signature">`:"<br><br><br>"}<b>${esc(SIGNER)}</b><br>Authorised signatory</div>`;
+  ${termsHTML(q)}<div class="sign">For ${esc(COMPANY.name)}${DB.signature?`<img src="${DB.signature}" alt="Signature">`:"<br><br><br>"}<b>${esc(SIGNER)}</b><br>Authorised signatory</div>`;
 }
 function closeQView(){const d=$("qview");if(d)d.remove();document.body.classList.remove("hasq");}
 window.addEventListener("popstate",closeQView);
@@ -753,7 +759,13 @@ async function quotePDF(q){
     text(String(i+1),x0[0]+4,9);text((l.product||"")+(l.density?" d"+l.density:""),x0[1]+4,9);text((l.thick||"")+" mm",x0[2]+4,9);text(l.size||"",x0[3]+4,9);
     rtext(num(l.pieces),x0[4]+cols[4]-4,9);rtext(num(c.sq),x0[5]+cols[5]-4,9);rtext(none?"-":"Rs "+num(l.rate),x0[6]+cols[6]-4,9);rtext(none?"-":rs(c.amt),x0[7]+cols[7]-4,9);y-=19;});
   y-=6;[["Subtotal",rs(T.sub),f],["GST "+num(Number(q.gst_pct)||0)+"%",rs(T.gst),f],["Total",rs(T.total),fb]].forEach(([a,b,font])=>{rtext(a,W-M-110,10,font);rtext(b,W-M-4,10,font);y-=16;});
-  if(q.notes){y-=8;if(y<150)newPage();text("Terms",M,10,fb);y-=14;wrap(q.notes,9.5,W-2*M).forEach(l=>{if(y<70)newPage();text(l,M,9.5);y-=12.5;});}
+  {y-=10;if(y<230)newPage();const th="TERMS AND CONDITIONS:";page.drawText(th,{x:M,y,size:10.5,font:fb,color:ink});page.drawLine({start:{x:M,y:y-2},end:{x:M+fb.widthOfTextAtSize(th,10.5),y:y-2},thickness:.8,color:ink});y-=19;
+  termRows(q).forEach(r=>{if(y<80)newPage();if(r.text){wrap(r.text,9.5,W-2*M).forEach(l=>{text(l,M,9.5);y-=12.5;});return;}
+    const font=r.strong?fb:f,vl=wrap(r.value,9.5,W-2*M-125);text(r.label,M,9.5,font);vl.forEach((l,i)=>{page.drawText(clean((i?"  ":": ")+l),{x:M+120,y,size:9.5,font,color:ink});y-=12.5;});});
+  y-=6;wrap("NOTE - THIS QUOTATION IS VALID FOR "+String(q.validity||"7 days").toUpperCase()+", SUBJECT TO MARKET CONDITION",9.5,W-2*M).forEach(l=>{if(y<70)newPage();text(l,M,9.5,fb);y-=12.5;});
+  y-=14;if(y<150)newPage();page.drawRectangle({x:M,y:y-62,width:200,height:68,color:rgb(.99,.91,.86),borderColor:rgb(.35,.35,.35),borderWidth:.8});
+  [["BANK DETAILS",1],["A/C No: "+BANK.ac],["IFSC Code: "+BANK.ifsc],["Branch: "+BANK.branch]].forEach(([t,u],i)=>{page.drawText(t,{x:M+8,y:y-12-i*15,size:9.5,font:fb,color:ink});if(u)page.drawLine({start:{x:M+8,y:y-14-i*15},end:{x:M+8+fb.widthOfTextAtSize(t,9.5),y:y-14-i*15},thickness:.7,color:ink});});y-=84;
+  CLOSING.forEach(p=>{wrap(p,9.5,W-2*M).forEach(l=>{if(y<70)newPage();text(l,M,9.5);y-=12.5;});y-=6;});}
   y-=22;if(y<150)newPage();text("For "+COMPANY.name,M,10);y-=8;if(sig){const sw=130,sh=sw*sig.height/sig.width;page.drawImage(sig,{x:M,y:y-sh,width:sw,height:sh});y-=sh+6;}else y-=34;text(SIGNER,M,10,fb);y-=13;text("Authorised signatory",M,10);
   return await doc.save();
 }
@@ -842,7 +854,7 @@ document.addEventListener("click",e=>{
   else if(a==="logout"){signOut();}
   else if(a==="backup"){downloadBackup();}
   else if(a==="add"){S.modal={t:el.dataset.t,k:el.dataset.k};renderModal();}
-  else if(a==="newquote"){const d=today(),c=null;S.modal={q:{no:qNumber(d),date:d,party:"",items:[{product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null}],gst_pct:18,validity:"15 days",status:"Draft",notes:Q_TERMS}};renderModal();}
+  else if(a==="newquote"){const d=today(),c=null;S.modal={q:{no:qNumber(d),date:d,party:"",items:[{product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null}],gst_pct:18,validity:"7 days",status:"Draft",notes:Q_TERMS}};renderModal();}
   else if(a==="editquote"){const q=DB.quotations.find(x=>x.id===el.dataset.id);if(q){S.modal={q:JSON.parse(JSON.stringify({...q,items:q.items||[]}))};renderModal();}}
   else if(a==="printquote"){if(S.modal&&S.modal.q)readQuote();const q=S.modal&&S.modal.q&&S.modal.q.id===el.dataset.id?S.modal.q:DB.quotations.find(x=>x.id===el.dataset.id);if(q)printQuote(q);}
   else if(a==="qadd"){readQuote().items.push({product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null});renderModal();}
