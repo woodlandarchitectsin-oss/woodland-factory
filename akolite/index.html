@@ -402,7 +402,7 @@ today(){
   const T=today(),p=DB.production.filter(r=>r.date===T&&inF(r)&&r.stage!=="Opening stock"),dis=DB.dispatch.filter(r=>r.date===T&&inF(r)),inw=DB.inward.filter(r=>r.date===T&&inF(r));
   const col=DB.collections.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0),pay=DB.payments.filter(r=>r.date===T).reduce((a,r)=>a+Number(r.amount),0);
   const lb=lastBackup(),dueBackup=!lb||lb<addDays(T,-7);
-  const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),mo=T.slice(0,7),openDue=!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo);
+  const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),mo=T.slice(0,7),openDue=can("stock")&&!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo)&&!DB.stock_moves.some(r=>r.move==="Opening"&&String(r.date).slice(0,7)===mo);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   const low=stockDays().filter(x=>x.days!=null&&x.days<7&&inF(x)),wk=addDays(T,-6),failed=[...DB.inward.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Inward",what:r.item+(r.supplier?" from "+r.supplier:"")})),...DB.dispatch.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Dispatch",what:[r.customer,r.grade,r.thick+" mm"].filter(Boolean).join(" · ")}))];
   return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+
