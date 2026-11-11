@@ -743,7 +743,7 @@ function render(){
   const R=$("root");
   if(!sb){R.innerHTML='<div class="login"><form><h1>Akolite Industrial Systems</h1><div class="err">This app isn\'t connected to its database yet. Add the project address and key to config.js.</div></form></div>';return;}
   if(S.loading){R.innerHTML='<div class="login"><div class="sub">Loading…</div></div>';return;}
-  if(!S.user){R.innerHTML=`<div class="login"><form id="loginForm"><div><h1>Akolite Industrial Systems</h1><div class="sub">Factory app · Part of Saleem OS</div></div><label>Your name or email<input id="lName" autocomplete="username" autocapitalize="none" value="${esc(S.lastName||"")}" required></label><label>Your PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><div class="err" id="lErr" role="alert">${esc(S.err)}</div><button class="btn pri">Sign in</button></form></div>`;return;}
+  if(!S.user){R.innerHTML=`<div class="login"><form id="loginForm"><div><h1>Akolite Industrial Systems</h1><div class="sub">Factory app · Part of Saleem OS</div></div><label>Your first name or login email<input id="lName" autocomplete="username" autocapitalize="none" value="${esc(S.lastName||"")}" required></label><label>Your PIN<input id="lPin" type="password" inputmode="numeric" autocomplete="current-password" required></label><div class="err" id="lErr" role="alert">${esc(S.err)}</div><button class="btn pri">Sign in</button></form></div>`;return;}
   const nav=navFor(),od=receivables().filter(x=>x.overdue>0).length;
   if(!nav.some(n=>n[0]===S.view)&&!(S.view==="ledger"&&can("money")))S.view=nav[0][0];
   const main=V[S.view]();
@@ -788,7 +788,9 @@ document.addEventListener("submit",async e=>{
   if(e.target.id==="loginForm"){
     const name=$("lName").value.trim(),slug=name.toLowerCase().replace(/[^a-z0-9]/g,""),btn=e.target.querySelector("button");
     S.lastName=name;btn.disabled=true;btn.textContent="Checking…";
-    const {data,error}=await sb.auth.signInWithPassword({email:name.includes("@")?name.toLowerCase():slug+"@"+(CFG.loginDomain||"staff.woodlandply.com"),password:$("lPin").value});
+    let {data,error}=await sb.auth.signInWithPassword({email:name.includes("@")?name.toLowerCase():slug+"@"+(CFG.loginDomain||"staff.woodlandply.com"),password:$("lPin").value});
+    // Akolite logins are first-name@akolite.in, so a first name alone also works
+    if(error&&!name.includes("@")&&!/fetch|network/i.test(error.message))({data,error}=await sb.auth.signInWithPassword({email:name.toLowerCase().replace(/\s+/g,"")+"@akolite.in",password:$("lPin").value}));
     if(error){S.err=/fetch|network/i.test(error.message)?"Couldn't reach the server. Check the internet.":"That name and PIN don't match. Try again, or ask an admin.";render();return;}
     try{if(await startSession(data.user.id)){S.err="";render();mondayReport();}else render();}catch(err){S.err="Signed in, but your data couldn't load. Try again.";S.user=null;render();}
   }
