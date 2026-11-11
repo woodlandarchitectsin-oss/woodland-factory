@@ -187,14 +187,15 @@ async function loadData(){
     let inw=inw0;if(has("money")){const am={};(await rpcRows("inward_amounts")).forEach(a=>{am[a.id]=a.amount;});inw=inw0.map(r=>({...r,amount:am[r.id]??null}));}
     const pm={};prices.forEach(p=>{pm[p.id]=p;});
     d.production=prod.map(stampBy);d.dispatch=dis.map(r=>stampBy({...r,rate:pm[r.id]?pm[r.id].rate:null,basis:pm[r.id]?pm[r.id].basis:null}));
-    d.inward=inw.map(stampBy);d.party_entries=has("money")?(await fetchAll("party_entries")).map(stampBy):[];d.stock_moves=has("stock","stock_raw")?(await fetchAll("stock_moves")).map(stampBy):[];d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
-    for(const t of ["orders","marketers","makers","machines","followups","remarks","quotations"])d[t]=has("leads")?(await fetchAll(t)).map(stampBy):[];
-    d.pallet_sizes=has("leads","production")?(await fetchAll("pallet_sizes")).map(stampBy):[];
-    let reps=has("production")?(await fetchAll("factory_reports",null,REP)).map(stampBy):[];
-    if(reps.length&&has("money")){const rr={};(await rpcRows("report_rates")).forEach(x=>{rr[x.id]=x;});reps=reps.map(r=>({...r,...(rr[r.id]||{}),id:r.id}));}
-    d.factory_reports=reps;d.vendors=has("money")?(await fetchAll("vendors")).map(stampBy):[];d.payables=has("money")?(await fetchAll("payables")).map(stampBy):[];
+    d.inward=inw.map(stampBy);d.customers=cust.map(stampBy);d.collections=col.map(stampBy);d.payments=pay.map(stampBy);d.counts=cnt.map(stampBy);
+    const LEAD=["orders","marketers","makers","machines","followups","remarks","quotations"],card=async()=>{const {data,error}=await sb.rpc("rate_card");if(error)throw error;return data;};
+    const [pe,sm,leads,ps,reps0,rates,ven,pyb,rc]=await Promise.all([has("money")?fetchAll("party_entries"):none(),has("stock","stock_raw")?fetchAll("stock_moves"):none(),has("leads")?Promise.all(LEAD.map(t=>fetchAll(t))):Promise.resolve(LEAD.map(()=>[])),
+      has("leads","production")?fetchAll("pallet_sizes"):none(),has("production")?fetchAll("factory_reports",null,REP):none(),has("production")&&has("money")?rpcRows("report_rates"):none(),
+      has("money")?fetchAll("vendors"):none(),has("money")?fetchAll("payables"):none(),has("money","leads")?card():Promise.resolve(null)]);
+    d.party_entries=pe.map(stampBy);d.stock_moves=sm.map(stampBy);LEAD.forEach((t,i)=>{d[t]=leads[i].map(stampBy);});d.pallet_sizes=ps.map(stampBy);
+    const rr={};rates.forEach(x=>{rr[x.id]=x;});d.factory_reports=reps0.map(r=>stampBy({...r,...(rr[r.id]||{}),id:r.id}));d.vendors=ven.map(stampBy);d.payables=pyb.map(stampBy);
     if(set[0])d.settings=set[0];
-    if(has("money","leads")){const {data,error}=await sb.rpc("rate_card");if(error)throw error;d.settings={...d.settings,rate_card:data};}
+    if(rc!=null)d.settings={...d.settings,rate_card:rc};
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
   }else if(role==="marketer"){const [l,f]=await Promise.all([sb.rpc("my_leads"),sb.rpc("my_followups")]);if(l.error)throw l.error;if(f.error)throw f.error;d.orders=l.data||[];d.followups=f.data||[];
@@ -698,6 +699,17 @@ async function saveForm(){
   formFields(M.t).forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
   if(M.t==="orders"&&rec.dispatched&&rec.value!=null&&Number(rec.received||0)<Number(rec.value)&&!M.payOK){M.payOK=true;$("ferr").textContent="Payment isn't complete. Press Save again only if this dispatch was approved anyway.";return;}
   if(M.t==="dispatch"&&!rec.customer){$("ferr").textContent="Add a customer before entering a dispatch.";return;}
+  if(!M.id&&!M.dupOK){const same=(a,b)=>Number(a)===Number(b);let dup=null;
+    if(M.t==="inward")dup=DB.inward.find(r=>r.date===rec.date&&r.item===rec.item&&(r.supplier||"")===(rec.supplier||"")&&same(r.qty,rec.qty));
+    if(M.t==="dispatch")dup=DB.dispatch.find(r=>r.date===rec.date&&(r.customer||"")===(rec.customer||"")&&r.size===rec.size&&same(r.thick,rec.thick)&&same(r.sheets,rec.sheets)&&(r.challan||"")===(rec.challan||""));
+    if(M.t==="production")dup=DB.production.find(r=>r.date===rec.date&&r.grade===rec.grade&&r.size===rec.size&&same(r.thick,rec.thick)&&same(r.sheets,rec.sheets)&&r.stage===rec.stage);
+    if(M.t==="collections")dup=DB.collections.find(r=>r.date===rec.date&&r.customer===rec.customer&&same(r.amount,rec.amount));
+    if(M.t==="payments")dup=DB.payments.find(r=>r.date===rec.date&&r.payee===rec.payee&&same(r.amount,rec.amount));
+    if(M.t==="payables")dup=DB.payables.find(r=>r.vendor===rec.vendor&&rec.bill&&r.bill===rec.bill);
+    if(M.t==="stock_moves")dup=DB.stock_moves.find(r=>r.date===rec.date&&r.item===rec.item&&r.move===rec.move&&same(r.qty,rec.qty));
+    if(dup){M.dupOK=true;$("ferr").textContent="This looks like an entry that's already saved, with the same date and figures. Press Save again only if it really is a second one.";return;}}
+  if(!M.dateOK&&!["followups","myfu","payables","orders"].includes(M.t)){const fut=formFields(M.t).find(f=>f.t==="date"&&rec[f.k]&&rec[f.k]>today());
+    if(fut){M.dateOK=true;$("ferr").textContent=`The ${fut.l.toLowerCase()} is in the future (${fmtD(rec[fut.k])} ${String(rec[fut.k]).slice(0,4)}). Press Save again if that's right.`;return;}}
   btn.disabled=true;btn.textContent="Saving…";
   try{
     if(M.t==="dispatch"&&!M.id&&!M.stockOK){
@@ -720,6 +732,7 @@ function render(){
   if(!nav.some(n=>n[0]===S.view)&&!(S.view==="ledger"&&can("money")))S.view=nav[0][0];
   const main=V[S.view]();
   R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore · Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="ledgers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  addListTools();
   if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Leads & orders","Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
 document.addEventListener("click",e=>{
@@ -742,13 +755,14 @@ document.addEventListener("click",e=>{
   else if(a==="qadd"){readQuote().items.push({product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null});renderModal();}
   else if(a==="qdel"){readQuote().items.splice(Number(el.dataset.i),1);renderModal();}
   else if(a==="qfill"){const q=readQuote(),g=q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";q.items.forEach(l=>{if(l.rate!=null&&l.rate!=="")return;const r=l.product==="Pallet"?(g&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);if(r!=null)l.rate=r;});renderModal();if(!g&&q.items.some(l=>l.product==="Pallet"))$("ferr").textContent="Choose a price group, or set the customer's type, to fill pallet rates.";}
+  else if(a==="csv"){exportScreen();}
   else if(a==="hidezero"){S.stockHideZero=!S.stockHideZero;render();}
   else if(a==="edit"){S.modal={t:el.dataset.t,id:el.dataset.id};renderModal();}
   else if(a==="close"){S.modal=null;renderModal();}
   else if(a==="del"){el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
   else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
 });
-document.addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("f-"))liveCalc();});
+document.addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("f-"))liveCalc();if(e.target.id==="tblq"){S.tq=S.tq||{};S.tq[S.view]=e.target.value;filterTables();}});
 document.addEventListener("change",e=>{if(S.modal&&S.modal.q&&e.target.closest&&e.target.closest("#quoteForm")&&(e.target.classList.contains("qi")||e.target.id==="q-gst_pct")){const f=document.activeElement&&document.activeElement.className==="qi"?null:null;readQuote();renderModal();}});
 document.addEventListener("change",e=>{if(e.target.id==="stockMonth"&&e.target.value){S.stockMonth=e.target.value;render();}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;renderModal();}});
@@ -764,7 +778,7 @@ document.addEventListener("submit",async e=>{
   if(e.target.id==="recForm")saveForm();
   if(e.target.id==="quoteForm"){const q=readQuote();if(!q.party||!q.items.length){$("ferr").textContent="Add the party and at least one item.";return;}
     const rec={...q};delete rec.by;["entered_by","entered_by_name","entered_at","edited_by_name"].forEach(k=>delete rec[k]);
-    try{await Api.save("quotations",rec);S.modal=null;renderModal();render();}catch(err){$("ferr").textContent=friendly(err);}}
+    try{try{await Api.save("quotations",rec);}catch(err){if(err&&err.code==="23505"&&!rec.id){await refresh();rec.no=qNumber(rec.date);await Api.save("quotations",rec);}else throw err;}S.modal=null;renderModal();render();}catch(err){$("ferr").textContent=friendly(err);}}
   if(e.target.id==="rateForm"){
     const groups={};document.querySelectorAll("input.rate").forEach(i=>{if(i.value==="")return;((groups[i.dataset.g]=groups[i.dataset.g]||{})[i.dataset.t]=groups[i.dataset.g][i.dataset.t]||{})[i.dataset.d]=Number(i.value);});
     const flooring=((DB.settings.rate_card||{}).flooring||[]).map((f,i)=>{const el=document.querySelector(`input.frate[data-i="${i}"]`);return {...f,rate:el&&el.value!==""?Number(el.value):f.rate};});
@@ -778,6 +792,27 @@ document.addEventListener("submit",async e=>{
     refresh();
   }
 });
+function addListTools(){
+  const main=document.querySelector("main.main");if(!main||["today","settings","documents"].includes(S.view))return;
+  const rows=main.querySelectorAll(".panel tbody tr");if(!rows.length)return;
+  const first=main.querySelector(".panel");if(!first)return;S.tq=S.tq||{};
+  const bar=document.createElement("div");bar.className="row listtools";bar.style.cssText="gap:8px;margin:0 0 12px;flex-wrap:wrap";
+  bar.innerHTML=`<input type="search" id="tblq" placeholder="Search this screen" aria-label="Search this screen" value="${esc(S.tq[S.view]||"")}" style="flex:1;min-width:200px;max-width:420px"><button class="btn" data-a="csv">Export to Excel</button><span class="sub" id="tblcount"></span>`;
+  first.before(bar);filterTables();
+}
+function filterTables(){
+  const q=(S.tq&&S.tq[S.view]||"").trim().toLowerCase(),words=q.split(/\s+/).filter(Boolean);let shown=0,all=0;
+  document.querySelectorAll("main.main .panel tbody tr").forEach(tr=>{if(tr.classList.contains("tot"))return;all++;const ok=!words.length||words.every(w=>tr.innerText.toLowerCase().includes(w));tr.style.display=ok?"":"none";if(ok)shown++;});
+  const c=$("tblcount");if(c)c.textContent=words.length?shown+" of "+all+" shown":"";
+}
+function exportScreen(){
+  const q=v=>{let t=String(v==null?"":v).replace(/\s+/g," ").trim();if(/^[=+\-@]/.test(t)&&!/^-?[\d.,₹]+$/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';},lines=[["Akolite Industrial Systems"],[(document.querySelector("main h1")||{}).innerText||S.view],["Exported "+today()+(S.tq&&S.tq[S.view]?" · search: "+S.tq[S.view]:"")],[]];
+  document.querySelectorAll("main.main .panel").forEach(p=>{const t=p.querySelector("table");if(!t)return;lines.push([(p.querySelector("h2")||{}).innerText||""]);
+    lines.push([...t.querySelectorAll("thead th")].map(th=>th.innerText).filter((h,i,a)=>i<a.length-1||h));
+    t.querySelectorAll("tbody tr").forEach(tr=>{if(tr.style.display==="none")return;lines.push([...tr.cells].filter(td=>!td.querySelector("button")||td.innerText.replace(/Edit|Ledger|Print|Update|Change status|Set price/g,"").trim()).map(td=>td.innerText.replace(/\b(Edit|Ledger|Print|Update|Change status|Set price)\b/g,"").trim()));});lines.push([]);});
+  const csv=lines.map(r=>r.map(q).join(",")).join("\r\n"),u=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"})),a=document.createElement("a");
+  a.href=u;a.download="Akolite-"+S.view+"-"+today()+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
+}
 async function signOut(){
   if(channel){sb.removeChannel(channel);channel=null;}
   await sb.auth.signOut();S.user=null;S.err="";S.modal=null;DB=EMPTY();renderModal();render();
