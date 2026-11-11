@@ -115,7 +115,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 #qview .who2{display:flex;gap:14px;align-items:center}#qview .who2 img{height:76px}#qview .qno{text-align:right}
 #qview .tw{overflow-x:auto}#qview table{width:100%;border-collapse:collapse;margin:16px 0}#qview th,#qview td{border:1px solid #bbb;padding:6px 8px;text-align:left;white-space:nowrap}
 #qview th{background:rgba(0,0,0,.05)}#qview .n{text-align:right}#qview .tot td{font-weight:600}#qview pre{font:inherit;white-space:pre-wrap;margin:0}#qview .warnq{color:#b00020;font-weight:600}
-#qview .tot td{background:#fff}
+#qview .tot td{background:#fff}#qview .sign{margin-top:36px;line-height:1.4}#qview .sign img{height:72px;display:block;margin:6px 0 2px}
 @media (max-width:600px){#qview{padding:0 10px 32px}#qview table{font-size:10.5px}#qview th,#qview td{padding:4px 3px;white-space:normal}#qview .who2 img{height:56px}#qview h1{font-size:17px}}
 @media print{body.hasq>*:not(#qview){display:none!important}#qview{position:static;overflow:visible;padding:0}#qview .bar{display:none}#qview .tw{overflow:visible}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style></head><body>
@@ -223,6 +223,7 @@ async function loadData(){
     const rr={};rates.forEach(x=>{rr[x.id]=x;});d.factory_reports=reps0.map(r=>stampBy({...r,...(rr[r.id]||{}),id:r.id}));d.vendors=ven.map(stampBy);d.payables=pyb.map(stampBy);
     if(set[0])d.settings=set[0];
     if(rc!=null)d.settings={...d.settings,rate_card:rc};
+    if(has("leads","money")){const {data:sg}=await sb.rpc("signature");d.signature=sg?"data:image/png;base64,"+sg:null;}
     if(log.error)throw log.error;
     d.log=(log.data||[]).map(l=>({at:l.at,user:l.user_name||"",role:l.user_role,action:l.action,table:l.table_name,summary:l.table_name==="dispatch_prices"?"Rate "+(l.row_data.rate==null?"cleared":l.row_data.rate):l.table_name==="settings"?"Automatic calculation figures":summary(l.table_name,l.row_data)}));
   }else if(role==="marketer"){const [l,f]=await Promise.all([sb.rpc("my_leads"),sb.rpc("my_followups")]);if(l.error)throw l.error;if(f.error)throw f.error;d.orders=l.data||[];d.followups=f.data||[];
@@ -707,6 +708,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
+const SIGNER="Ahamed Saleem";
 function quoteDocHTML(q){
   const T=qTotals(q),rate=l=>l.rate==null||l.rate===""?"—":"₹"+num(l.rate);
   const rows=(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr><td>${i+1}</td><td>${esc(l.product)}${l.density?" · density "+esc(l.density):""}</td><td>${esc(l.thick)} mm</td><td>${esc(l.size)}</td><td class="n">${num(l.pieces)}</td><td class="n">${num(c.sq)}</td><td class="n">${rate(l)}</td><td class="n">${l.rate==null||l.rate===""?"—":inr(c.amt)}</td></tr>`;}).join("");
@@ -715,7 +717,7 @@ function quoteDocHTML(q){
   <div class="tw"><table><thead><tr><th>#</th><th>Product</th><th>Thickness</th><th>Size</th><th class="n">Pieces</th><th class="n">Sq ft</th><th class="n">Rate / sq ft</th><th class="n">Amount</th></tr></thead><tbody>${rows}
   <tr class="tot"><td colspan="7" class="n">Subtotal</td><td class="n">${inr(T.sub)}</td></tr><tr class="tot"><td colspan="7" class="n">GST ${num(Number(q.gst_pct)||0)}%</td><td class="n">${inr(T.gst)}</td></tr><tr class="tot"><td colspan="7" class="n">Total</td><td class="n">${inr(T.total)}</td></tr></tbody></table></div>
   ${(q.items||[]).some(l=>l.rate==null||l.rate==="")?`<p class="warnq">Some items have no rate yet (shown as —). Choose the price group, or enter the rate, before sending.</p>`:""}
-  ${q.notes?`<p><b>Terms</b></p><pre>${esc(q.notes)}</pre>`:""}<p style="margin-top:40px">For ${esc(COMPANY.name)}<br><br><br>Authorised signatory</p>`;
+  ${q.notes?`<p><b>Terms</b></p><pre>${esc(q.notes)}</pre>`:""}<div class="sign">For ${esc(COMPANY.name)}${DB.signature?`<img src="${DB.signature}" alt="Signature">`:"<br><br><br>"}<b>${esc(SIGNER)}</b><br>Authorised signatory</div>`;
 }
 function closeQView(){const d=$("qview");if(d)d.remove();document.body.classList.remove("hasq");}
 window.addEventListener("popstate",closeQView);
@@ -729,7 +731,7 @@ function loadPdfLib(){return window.PDFLib?Promise.resolve():new Promise((res,re
 async function quotePDF(q){
   await loadPdfLib();const {PDFDocument,StandardFonts,rgb}=PDFLib;
   const doc=await PDFDocument.create(),f=await doc.embedFont(StandardFonts.Helvetica),fb=await doc.embedFont(StandardFonts.HelveticaBold);
-  const logo=await doc.embedPng(await fetch(LOGO).then(r=>r.arrayBuffer()));
+  const logo=await doc.embedPng(await fetch(LOGO).then(r=>r.arrayBuffer())),sig=DB.signature?await doc.embedPng(await fetch(DB.signature).then(r=>r.arrayBuffer())):null;
   const W=595.28,H=841.89,M=40,T=qTotals(q),ink=rgb(.07,.07,.07),clean=t=>String(t==null?"":t).replace(/[^\x20-\x7E -ÿ]/g,"?"),rs=n=>"Rs "+num(Math.round(n));
   let page,y;
   const newPage=()=>{page=doc.addPage([W,H]);const lw=W*.62,lh=lw*logo.height/logo.width;page.drawImage(logo,{x:(W-lw)/2,y:(H-lh)/2,width:lw,height:lh,opacity:.07});y=H-M;};
@@ -752,7 +754,7 @@ async function quotePDF(q){
     rtext(num(l.pieces),x0[4]+cols[4]-4,9);rtext(num(c.sq),x0[5]+cols[5]-4,9);rtext(none?"-":"Rs "+num(l.rate),x0[6]+cols[6]-4,9);rtext(none?"-":rs(c.amt),x0[7]+cols[7]-4,9);y-=19;});
   y-=6;[["Subtotal",rs(T.sub),f],["GST "+num(Number(q.gst_pct)||0)+"%",rs(T.gst),f],["Total",rs(T.total),fb]].forEach(([a,b,font])=>{rtext(a,W-M-110,10,font);rtext(b,W-M-4,10,font);y-=16;});
   if(q.notes){y-=8;if(y<150)newPage();text("Terms",M,10,fb);y-=14;wrap(q.notes,9.5,W-2*M).forEach(l=>{if(y<70)newPage();text(l,M,9.5);y-=12.5;});}
-  y-=22;if(y<110)newPage();text("For "+COMPANY.name,M,10);y-=42;text("Authorised signatory",M,10);
+  y-=22;if(y<150)newPage();text("For "+COMPANY.name,M,10);y-=8;if(sig){const sw=130,sh=sw*sig.height/sig.width;page.drawImage(sig,{x:M,y:y-sh,width:sw,height:sh});y-=sh+6;}else y-=34;text(SIGNER,M,10,fb);y-=13;text("Authorised signatory",M,10);
   return await doc.save();
 }
 async function saveQuotePDF(q){
