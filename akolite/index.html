@@ -100,6 +100,11 @@ tr.tot td{font-weight:600;background:var(--surface2)}
   .form{grid-template-columns:minmax(0,1fr)}
 }
 [hidden]{display:none!important}body{margin:0}
+.navh{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.55;padding:14px 10px 4px}
+.nav .more{opacity:.8;font-size:14px}
+.quick{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin:0 0 16px}
+.quick .btn{padding:16px 14px;font-size:16px;text-align:center;justify-content:center}
+@media (max-width:760px){.navh{display:none}.quick{grid-template-columns:1fr 1fr}.quick .btn{padding:14px 8px;font-size:15px}}
 </style></head><body>
 <div id="root"></div>
 <div id="layer"></div>
@@ -164,6 +169,15 @@ const isAdmin=()=>S.user&&S.user.role==="admin";
 const can=a=>!!S.user&&(S.user.role==="admin"||(S.user.role==="staff"&&(S.user.areas||[]).includes(a)));
 const isEntry=()=>!!S.user&&["production","dispatch"].includes(S.user.role);
 const SCREEN_AREA={today:["production","inward","dispatch","stock","stock_raw","leads","customers","money"],finished:["stock"],raw:["stock","stock_raw"],orders:["leads"],quotes:["leads"],prices:["leads","money"],followups:["leads"],marketers:["leads"],makers:["leads"],machines:["leads"],pallets:["leads","production"],remarks:["leads"],reports:["production"],production:["production"],inward:["inward"],rates:["money"],dispatch:["dispatch"],customers:["customers"],vendors:["money"],payables:["money"],money:["money"],ledgers:["money"],documents:["money"],check:["stock"],weekly:["production","money"],history:["history"],settings:[]};
+const NAV_GROUPS=[["Daily work",["today","production","inward","dispatch","reports","weekly"]],["Stock",["finished","raw","check"]],["Sales",["orders","quotes","customers","followups","prices"]],["Accounts",["ledgers","payables","money","rates","vendors"]],["More",["marketers","makers","machines","pallets","remarks","documents","history","settings"]]];
+function navHTML(nav,od){
+  const btn=([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="ledgers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`;
+  if(nav.length<=7)return nav.map(btn).join("");
+  const label=Object.fromEntries(nav),open=S.moreOpen||NAV_GROUPS[4][1].includes(S.view);
+  return NAV_GROUPS.map(([g,keys])=>{const items=keys.filter(k=>label[k]).map(k=>[k,label[k]]);if(!items.length)return "";
+    if(g==="More")return `<button class="more" data-a="moretoggle" aria-expanded="${open}"><span>${open?"Less ▴":"More ▾"}</span></button>`+(open?items.map(btn).join(""):"");
+    return `<div class="navh">${g}</div>`+items.map(btn).join("");}).join("");
+}
 const navFor=()=>S.user.role==="staff"?NAV.admin.filter(([k])=>(SCREEN_AREA[k]||[]).some(can)):NAV[S.user.role];
 
 /* ---- all data goes through here; the database itself enforces who can see and change what ---- */
@@ -384,7 +398,7 @@ function lastWeek(){let d=addDays(today(),-1);while(new Date(d+"T00:00:00").getD
 const tile=(n,l,s,hot)=>`<div class="tile ${hot?"hot":""}"><b>${esc(n)}</b><span>${esc(l)}</span>${s?`<small>${esc(s)}</small>`:""}</div>`;
 const panel=(t,b,c)=>`<section class="panel ${c||""}"><h2>${t}</h2>${b}</section>`;
 const tbl=(h,rows,empty)=>rows.length?`<div class="scroll"><table><thead><tr>${h.map(x=>{const n=x.endsWith("#");return `<th class="${n?"n":""}">${esc(n?x.slice(0,-1):x)}</th>`;}).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`:`<div class="none">${esc(empty||"Nothing here yet.")}</div>`;
-const factorySwitch=()=>`<div class="row" role="group" aria-label="Factory">${["All",...FACTORIES].map(f=>`<button class="btn sm ${S.factory===f?"on":""}" data-a="factory" data-v="${f}">${f==="All"?"Both factories":esc(f)}</button>`).join("")}</div>`;
+const factorySwitch=()=>FACTORIES.length<2?"":`<div class="row" role="group" aria-label="Factory">${["All",...FACTORIES].map(f=>`<button class="btn sm ${S.factory===f?"on":""}" data-a="factory" data-v="${f}">${f==="All"?"Both factories":esc(f)}</button>`).join("")}</div>`;
 const head=(t,sub,right)=>`<div class="head"><div><h1>${esc(t)}</h1>${sub?`<div class="sub">${esc(sub)}</div>`:""}</div><div class="row">${right||""}</div></div>`;
 
 /* ---- orders: 21-day lead time, full payment before dispatch, repeat reminder after 2 years ---- */
@@ -406,7 +420,9 @@ today(){
   const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),mo=T.slice(0,7),openDue=can("stock")&&!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo)&&!DB.stock_moves.some(r=>r.move==="Opening"&&String(r.date).slice(0,7)===mo);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   const low=stockDays().filter(x=>x.days!=null&&x.days<7&&inF(x)),wk=addDays(T,-6),failed=[...DB.inward.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Inward",what:r.item+(r.supplier?" from "+r.supplier:"")})),...DB.dispatch.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Dispatch",what:[r.customer,r.grade,r.thick+" mm"].filter(Boolean).join(" · ")}))];
-  return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+
+  const QUICK=[["production","add","production","Add production"],["inward","add","inward","Add inward"],["dispatch","add","dispatch","Add dispatch"],["stock|stock_raw","add","stock_moves","Add stock entry"],["money","add","collections","Payment received"],["money","add","payments","Payment made"],["money","add","payables","Add supplier bill"],["leads","newquote","","New quotation"],["leads","add","orders","Add lead"],["leads","add","followups","Add follow-up"]].filter(q=>q[0].split("|").some(can));
+  const quick=QUICK.length?`<div class="quick">${QUICK.map(([,a,t,l])=>`<button class="btn pri" data-a="${a}" ${t?`data-t="${t}"`:""} ${t==="stock_moves"?'data-k="Raw"':""}>${esc(l)}</button>`).join("")}</div>`:"";
+  return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+quick+
   (openDue?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">This month's opening stock hasn't been entered. It's due on the 1st.</div>`:"")+(can("leads")&&(lateO.length||repO.length)?`<div class="tiles">${tile(lateO.length,"Late orders",null,lateO.length>0)}${tile(repO.length,"Repeat orders due")}</div>`:"")+(low.length?panel("Raw material running low · "+low.length,tbl(["Factory","Material","In stock#","Used per day#","Days left#"],low.map(x=>`<tr><td>${esc(x.factory)}</td><td>${esc(x.item)}</td><td class="n">${num(x.balance)} ${esc(x.unit)}</td><td class="n">${num(x.perDay)}</td><td class="n"><span class="pill crit">${x.days<=0?"Out":num(x.days)}</span></td></tr>`)),"alert"):"")+(failed.length?panel("Failed quality checks, last 7 days · "+failed.length,tbl(["Date","In or out","Details","Note"],failed.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${r.kind}</td><td>${esc(r.what)}</td><td>${esc(r.qc_note)}</td></tr>`)),"alert"):"")+(dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>/veneer/i.test(r.item)).reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${can("money")?tile(inr(col),"Collections today")+tile(inr(pay),"Payments made today"):""}</div>`+
   (!can("money")?"":panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":""))+
   (up.length&&can("money")?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Pieces#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
@@ -731,7 +747,7 @@ function render(){
   const nav=navFor(),od=receivables().filter(x=>x.overdue>0).length;
   if(!nav.some(n=>n[0]===S.view)&&!(S.view==="ledger"&&can("money")))S.view=nav[0][0];
   const main=V[S.view]();
-  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore · Saleem OS</span></div><nav class="nav" aria-label="Screens">${nav.map(([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="ledgers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`).join("")}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore · Saleem OS</span></div><nav class="nav" aria-label="Screens">${navHTML(nav,od)}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
   addListTools();
   if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Leads & orders","Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
@@ -756,6 +772,7 @@ document.addEventListener("click",e=>{
   else if(a==="qdel"){readQuote().items.splice(Number(el.dataset.i),1);renderModal();}
   else if(a==="qfill"){const q=readQuote(),g=q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";q.items.forEach(l=>{if(l.rate!=null&&l.rate!=="")return;const r=l.product==="Pallet"?(g&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);if(r!=null)l.rate=r;});renderModal();if(!g&&q.items.some(l=>l.product==="Pallet"))$("ferr").textContent="Choose a price group, or set the customer's type, to fill pallet rates.";}
   else if(a==="csv"){exportScreen();}
+  else if(a==="moretoggle"){S.moreOpen=!S.moreOpen;render();}
   else if(a==="hidezero"){S.stockHideZero=!S.stockHideZero;render();}
   else if(a==="edit"){S.modal={t:el.dataset.t,id:el.dataset.id};renderModal();}
   else if(a==="close"){S.modal=null;renderModal();}
