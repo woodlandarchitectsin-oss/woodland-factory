@@ -708,6 +708,8 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
+const APP_VERSION="12 Nov 2026 · quotation terms v2";
+const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
 const termRows=q=>String(q.notes||"").split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^([^:]{2,24}?)\s*:\s*(.+)$/);return m?{label:m[1].trim(),value:m[2].trim(),strong:/^(PAYMENT|DELIVERY)$/i.test(m[1].trim())}:{text:l};});
@@ -728,7 +730,7 @@ function quoteDocHTML(q){
 function closeQView(){const d=$("qview");if(d)d.remove();document.body.classList.remove("hasq");}
 window.addEventListener("popstate",closeQView);
 function printQuote(q){
-  closeQView();const d=document.createElement("div");d.id="qview";
+  q=qMigrate(q);closeQView();const d=document.createElement("div");d.id="qview";
   d.innerHTML=`<div class="bar"><button data-a="qviewclose">← Back</button><button data-a="qprint">Print</button><button class="p" data-a="qpdf">Save as PDF</button></div><img class="wm" src="${LOGO}" alt=""><div class="qdoc">${quoteDocHTML(q)}</div>`;
   d.dataset.id=q.id||"";window.__qq=q;document.body.classList.add("hasq");document.body.append(d);d.scrollTop=0;
   try{history.pushState({qv:1},"");}catch(e){}
@@ -836,7 +838,7 @@ function render(){
   const nav=navFor(),od=receivables().filter(x=>x.overdue>0).length;
   if(!nav.some(n=>n[0]===S.view)&&!(S.view==="ledger"&&can("money")))S.view=nav[0][0];
   const main=V[S.view]();
-  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore</span></div><nav class="nav" aria-label="Screens">${navHTML(nav,od)}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
+  R.innerHTML=`<div class="app"><aside class="rail"><div class="brand"><b>AKOLITE</b><span>Baikampady, Mangalore</span></div><nav class="nav" aria-label="Screens">${navHTML(nav,od)}</nav><div class="who">${esc(S.user.name)} · ${esc(ROLE_LABEL[S.user.role])}<button data-a="logout">Sign out</button><div style="font-size:11px;opacity:.55;margin-top:6px">Version ${APP_VERSION}</div></div></aside><main class="main">${S.banner?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">${esc(S.banner)}</div>`:""}${main}</main></div>`;
   addListTools();
   if(S.view==="documents"&&$("docsHost"))Docs.mount($("docsHost"),{sb,biz:"akosys",areas:["Leads & orders","Machine models & pallets","Marketers","Follow-ups","Vendors","Pending payments","Customers","Collections & payments","Inward (raw material)","Production","Dispatch","Stock count","Other"]});
 }
@@ -855,7 +857,7 @@ document.addEventListener("click",e=>{
   else if(a==="backup"){downloadBackup();}
   else if(a==="add"){S.modal={t:el.dataset.t,k:el.dataset.k};renderModal();}
   else if(a==="newquote"){const d=today(),c=null;S.modal={q:{no:qNumber(d),date:d,party:"",items:[{product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null}],gst_pct:18,validity:"7 days",status:"Draft",notes:Q_TERMS}};renderModal();}
-  else if(a==="editquote"){const q=DB.quotations.find(x=>x.id===el.dataset.id);if(q){S.modal={q:JSON.parse(JSON.stringify({...q,items:q.items||[]}))};renderModal();}}
+  else if(a==="editquote"){const q=DB.quotations.find(x=>x.id===el.dataset.id);if(q){S.modal={q:qMigrate(JSON.parse(JSON.stringify({...q,items:q.items||[]})))};renderModal();}}
   else if(a==="printquote"){if(S.modal&&S.modal.q)readQuote();const q=S.modal&&S.modal.q&&S.modal.q.id===el.dataset.id?S.modal.q:DB.quotations.find(x=>x.id===el.dataset.id);if(q)printQuote(q);}
   else if(a==="qadd"){readQuote().items.push({product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null});renderModal();}
   else if(a==="qdel"){readQuote().items.splice(Number(el.dataset.i),1);renderModal();}
