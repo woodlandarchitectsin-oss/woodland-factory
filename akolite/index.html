@@ -346,8 +346,8 @@ function receivables(){
 const Q_PRODUCTS=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"],Q_TERMS="PRICES : Ex Factory Mangalore\nDUTIES & TAXES : GST Extra\nFREIGHT : Extra\nPAYMENT : 50% Advance and 50% on the day of dispatch\nDELIVERY : 15 Days from the date of your PO & Advances";
 const qGroupSet=q=>q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";
 const qGroup=q=>qGroupSet(q)||"25";
-function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(qPiece(l)==null||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick),a=area(l.size||"");l.prate=r!=null&&a?Math.round(r*a):null;l.rate=null;l.auto=l.prate!=null;});return q;}
-const qPiece=l=>l.prate!=null&&l.prate!==""?Number(l.prate):(l.rate!=null&&l.rate!==""&&area(l.size||"")?Math.round(Number(l.rate)*area(l.size||"")):null);
+function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(qPiece(l)==null||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick),a=area(l.size||"");l.prate=r!=null&&a?Math.round(r*a/10)*10:null;l.rate=null;l.auto=l.prate!=null;});return q;}
+const qPiece=l=>l.prate!=null&&l.prate!==""?Number(l.prate):(l.rate!=null&&l.rate!==""&&area(l.size||"")?Math.round(Number(l.rate)*area(l.size||"")/10)*10:null);
 const qLine=l=>{const sq=(Number(l.pieces)||0)*area(l.size||""),p=qPiece(l);return {sq,amt:p==null?0:(Number(l.pieces)||0)*p};};
 const qRateLabel=q=>(q.items||[]).length&&(q.items||[]).every(l=>l.product==="Pallet")?"Rate per pallet":"Rate per piece";
 const qTotals=q=>{const sub=(q.items||[]).reduce((a,l)=>a+qLine(l).amt,0),gst=sub*(Number(q.gst_pct)||0)/100;return {sub,gst,total:sub+gst};};
@@ -710,7 +710,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="12 Nov 2026 · quotation terms v2";
+const APP_VERSION="12 Nov 2026 · rate per pallet v3";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -944,6 +944,7 @@ function mondayReport(){
 window.addEventListener("focus",()=>{if(S.user)refresh();});
 window.addEventListener("online",()=>{if(S.user)refresh();});
 if("serviceWorker" in navigator)navigator.serviceWorker.register("../sw.js").catch(()=>{});
+try{fetch(location.pathname,{cache:"no-store"}).then(r=>r.text()).then(t=>{const m=t.match(/const APP_VERSION="([^"]+)"/);if(m&&m[1]!==APP_VERSION&&!sessionStorage.getItem("akUpdated")){sessionStorage.setItem("akUpdated","1");const u=new URL(location.href);u.searchParams.set("_v",Date.now());location.replace(u.href);}}).catch(()=>{});}catch(e){}
 (async function boot(){
   render();
   if(!sb)return;
