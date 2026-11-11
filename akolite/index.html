@@ -346,8 +346,10 @@ function receivables(){
 const Q_PRODUCTS=["Pallet","TF","CHQ","CHQ 30kg","FFS Black","Plain","CB","ISI","LVL"],Q_TERMS="PRICES : Ex Factory Mangalore\nDUTIES & TAXES : GST Extra\nFREIGHT : Extra\nPAYMENT : 50% Advance and 50% on the day of dispatch\nDELIVERY : 15 Days from the date of your PO & Advances";
 const qGroupSet=q=>q.price_group||GROUP_OF[(DB.customers.find(c=>c.name===q.party)||{}).type]||"";
 const qGroup=q=>qGroupSet(q)||"25";
-function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(l.rate==null||l.rate===""||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);l.rate=r??null;l.auto=r!=null;});return q;}
-const qLine=l=>{const sq=(Number(l.pieces)||0)*area(l.size||"");return {sq,amt:sq*(Number(l.rate)||0)};};
+function qAuto(q){const g=qGroup(q);(q.items||[]).forEach(l=>{if(!(qPiece(l)==null||l.auto))return;const r=l.product==="Pallet"?(g&&l.thick&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick),a=area(l.size||"");l.prate=r!=null&&a?Math.round(r*a):null;l.rate=null;l.auto=l.prate!=null;});return q;}
+const qPiece=l=>l.prate!=null&&l.prate!==""?Number(l.prate):(l.rate!=null&&l.rate!==""&&area(l.size||"")?Math.round(Number(l.rate)*area(l.size||"")):null);
+const qLine=l=>{const sq=(Number(l.pieces)||0)*area(l.size||""),p=qPiece(l);return {sq,amt:p==null?0:(Number(l.pieces)||0)*p};};
+const qRateLabel=q=>(q.items||[]).length&&(q.items||[]).every(l=>l.product==="Pallet")?"Rate per pallet":"Rate per piece";
 const qTotals=q=>{const sub=(q.items||[]).reduce((a,l)=>a+qLine(l).amt,0),gst=sub*(Number(q.gst_pct)||0)/100;return {sub,gst,total:sub+gst};};
 const qNumber=date=>{const [y,m]=String(date).split("-").map(Number),fy=m>=4?y:y-1,tag=fy+"-"+String((fy+1)%100).padStart(2,"0"),n=DB.quotations.filter(q=>String(q.no||"").includes("/"+tag+"/")).length+1;return "AK/Q/"+tag+"/"+String(n).padStart(3,"0");};
 const qcPill=r=>r.qc?`<span class="pill ${r.qc==="Passed"?"ok":r.qc==="Failed"?"crit":"warn"}">${esc(r.qc)}</span>${r.qc_note?` <small>${esc(r.qc_note)}</small>`:""}`:"";
@@ -687,16 +689,16 @@ function quoteModal(M){
   <div class="form">${inp("date","Date","date","required")}<label>Party *<input id="q-party" list="q-parties" value="${esc(q.party||"")}" required autocomplete="off"><datalist id="q-parties">${[...new Set([...DB.customers.map(c=>c.name),...DB.orders.map(o=>o.party)])].filter(Boolean).map(n=>`<option value="${esc(n)}">`).join("")}</datalist></label>
   ${inp("address","Bill address")}${inp("gst","Party GST number")}${inp("contact","Contact and phone")}<label>Price group<select id="q-group">${["",...PRICE_GROUPS.map(p=>p[0])].map(g=>`<option value="${g}" ${String(q.price_group||"")===g?"selected":""}>${g?groupLabel(g):"From customer type"}</option>`).join("")}</select></label>
   ${inp("gst_pct","GST %","number",'step="any" min="0"')}${inp("validity","Valid for")}<label>Status<select id="q-status">${["Draft","Sent","Accepted","Lost"].map(x=>`<option ${q.status===x?"selected":""}>${x}</option>`).join("")}</select></label></div>
-  <div class="scroll"><table><thead><tr><th>Product</th><th>Thickness (mm)</th><th>Density</th><th>Size</th><th class="n">Pieces</th><th class="n">Rate ₹/sq ft</th><th class="n">Sq ft</th><th class="n">Amount</th><th></th></tr></thead><tbody>${(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr>
+  <div class="scroll"><table><thead><tr><th>Product</th><th>Thickness (mm)</th><th>Density</th><th>Size</th><th class="n">Pieces</th><th class="n">Rate ₹ per piece</th><th class="n">Amount</th><th></th></tr></thead><tbody>${(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr>
     <td><select class="qi" data-i="${i}" data-k="product">${Q_PRODUCTS.map(p=>`<option ${l.product===p?"selected":""}>${p}</option>`).join("")}</select></td>
     <td><input class="qi" data-i="${i}" data-k="thick" type="number" step="any" min="0" value="${esc(l.thick??"")}" style="width:70px"></td>
     <td><select class="qi" data-i="${i}" data-k="density">${["","0.95","1.0","1.1","1.2"].map(d=>`<option ${String(l.density||"")===d?"selected":""}>${d}</option>`).join("")}</select></td>
     <td><input class="qi" data-i="${i}" data-k="size" value="${esc(l.size||"")}" placeholder="900x550 or 8x4" style="width:110px"></td>
     <td class="n"><input class="qi" data-i="${i}" data-k="pieces" type="number" step="any" min="0" value="${esc(l.pieces??"")}" style="width:80px"></td>
-    <td class="n"><input class="qi" data-i="${i}" data-k="rate" type="number" step="any" min="0" value="${esc(l.rate??"")}" style="width:80px"></td>
-    <td class="n">${num(c.sq)}</td><td class="n">${inr(c.amt)}</td><td><button type="button" class="btn sm" data-a="qdel" data-i="${i}">Remove</button></td></tr>`;}).join("")}</tbody></table></div>
+    <td class="n"><input class="qi" data-i="${i}" data-k="prate" type="number" step="any" min="0" value="${esc(qPiece(l)??"")}" style="width:80px"></td>
+    <td class="n">${inr(c.amt)}</td><td><button type="button" class="btn sm" data-a="qdel" data-i="${i}">Remove</button></td></tr>`;}).join("")}</tbody></table></div>
   <div class="row" style="margin:10px 0"><button type="button" class="btn" data-a="qadd">Add item</button><button type="button" class="btn" data-a="qfill">Fill empty rates from the price list</button></div>
-  <div class="sub" style="margin:6px 0">${qGroupSet(q)?"Rates come from the price list for "+esc(groupLabel(qGroup(q)))+".":"The customer has no type yet, so the price list for "+esc(groupLabel("25"))+" is used. Change the price group, or set the customer's type, if that is not right."} Pallets need thickness and density. A rate you type yourself is kept. Truck flooring and chequered plywood use the full-truckload rates.</div><div class="calc">Subtotal ${inr(T.sub)} · GST ${num(Number(q.gst_pct)||0)}% ${inr(T.gst)} · <b>Total ${inr(T.total)}</b></div>
+  <div class="sub" style="margin:6px 0">${qGroupSet(q)?"Rates come from the price list for "+esc(groupLabel(qGroup(q)))+".":"The customer has no type yet, so the price list for "+esc(groupLabel("25"))+" is used. Change the price group, or set the customer's type, if that is not right."} The rate per pallet is the price-list rate per sq ft times the pallet's size, to the nearest rupee. Pallets need thickness, density and size. A rate you type yourself is kept. Truck flooring and chequered plywood use the full-truckload rates.</div><div class="calc">Subtotal ${inr(T.sub)} · GST ${num(Number(q.gst_pct)||0)}% ${inr(T.gst)} · <b>Total ${inr(T.total)}</b></div>
   <label style="display:block;margin-top:10px">Terms<textarea id="q-notes" rows="4" style="width:100%">${esc(q.notes||"")}</textarea></label>
   <div class="err" id="ferr" role="alert"></div>
   <div class="actions"><button class="btn pri">Save</button><button type="button" class="btn" data-a="close">Cancel</button>${q.id?`<button type="button" class="btn" data-a="printquote" data-id="${q.id}">Print</button>`:""}</div></form></div>`;
@@ -704,7 +706,7 @@ function quoteModal(M){
 function readQuote(){
   const q=S.modal.q,v=id=>$("q-"+id)?$("q-"+id).value.trim():"";
   Object.assign(q,{date:v("date"),party:v("party"),address:v("address"),gst:v("gst"),contact:v("contact"),price_group:v("group")||null,gst_pct:v("gst_pct")===""?0:Number(v("gst_pct")),validity:v("validity"),status:v("status")||"Draft",notes:$("q-notes")?$("q-notes").value:q.notes});
-  document.querySelectorAll("#quoteForm .qi").forEach(e=>{const l=q.items[e.dataset.i],k=e.dataset.k;l[k]=["thick","pieces","rate"].includes(k)?(e.value===""?null:Number(e.value)):e.value;});
+  document.querySelectorAll("#quoteForm .qi").forEach(e=>{const l=q.items[e.dataset.i],k=e.dataset.k;l[k]=["thick","pieces","prate"].includes(k)?(e.value===""?null:Number(e.value)):e.value;});
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
@@ -718,13 +720,13 @@ function termsHTML(q){
   return `<div class="tc"><p class="th">TERMS AND CONDITIONS:</p><table class="terms">${rows}</table><p class="vnote">NOTE – THIS QUOTATION IS VALID FOR ${esc(String(q.validity||"7 days").toUpperCase())}, SUBJECT TO MARKET CONDITION</p></div><div class="bank"><b><u>BANK DETAILS</u></b><br><b>A/C No: ${BANK.ac}</b><br><b>IFSC Code: ${BANK.ifsc}</b><br><b>Branch: ${BANK.branch}</b></div><p>${CLOSING[0]}</p><p>${CLOSING[1]}</p>`;
 }
 function quoteDocHTML(q){
-  const T=qTotals(q),rate=l=>l.rate==null||l.rate===""?"—":"₹"+num(l.rate);
-  const rows=(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr><td>${i+1}</td><td>${esc(l.product)}${l.density?" · density "+esc(l.density):""}</td><td>${esc(l.thick)} mm</td><td>${esc(l.size)}</td><td class="n">${num(l.pieces)}</td><td class="n">${num(c.sq)}</td><td class="n">${rate(l)}</td><td class="n">${l.rate==null||l.rate===""?"—":inr(c.amt)}</td></tr>`;}).join("");
+  const T=qTotals(q),rate=l=>qPiece(l)==null?"—":"₹"+num(qPiece(l));
+  const rows=(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr><td>${i+1}</td><td>${esc(l.product)}${l.density?" · density "+esc(l.density):""}</td><td>${esc(l.thick)} mm</td><td>${esc(l.size)}</td><td class="n">${num(l.pieces)}</td><td class="n">${rate(l)}</td><td class="n">${qPiece(l)==null?"—":inr(c.amt)}</td></tr>`;}).join("");
   return `<div class="top"><div class="who2"><img src="${LOGO}" alt="Akolite"><div><h1>${esc(COMPANY.name)}</h1><div>${esc(COMPANY.billAddress)}</div><div>GSTIN ${esc(COMPANY.gstin)}</div></div></div><div class="qno"><h1>QUOTATION</h1><div>No. ${esc(q.no)}</div><div>Date ${esc(fmtD(q.date))} ${esc(String(q.date).slice(0,4))}</div>${q.validity?`<div>Valid for ${esc(q.validity)}</div>`:""}</div></div>
   <p><b>To:</b> ${esc(q.party)}${q.address?"<br>"+esc(q.address):""}${q.gst?"<br>GSTIN "+esc(q.gst):""}${q.contact?"<br>"+esc(q.contact):""}</p>
-  <div class="tw"><table><thead><tr><th>#</th><th>Product</th><th>Thickness</th><th>Size</th><th class="n">Pieces</th><th class="n">Sq ft</th><th class="n">Rate / sq ft</th><th class="n">Amount</th></tr></thead><tbody>${rows}
-  <tr class="tot"><td colspan="7" class="n">Subtotal</td><td class="n">${inr(T.sub)}</td></tr><tr class="tot"><td colspan="7" class="n">GST ${num(Number(q.gst_pct)||0)}%</td><td class="n">${inr(T.gst)}</td></tr><tr class="tot"><td colspan="7" class="n">Total</td><td class="n">${inr(T.total)}</td></tr></tbody></table></div>
-  ${(q.items||[]).some(l=>l.rate==null||l.rate==="")?`<p class="warnq">Some items have no rate yet (shown as —). Choose the price group, or enter the rate, before sending.</p>`:""}
+  <div class="tw"><table><thead><tr><th>#</th><th>Product</th><th>Thickness</th><th>Size</th><th class="n">Pieces</th><th class="n">${qRateLabel(q)}</th><th class="n">Amount</th></tr></thead><tbody>${rows}
+  <tr class="tot"><td colspan="6" class="n">Subtotal</td><td class="n">${inr(T.sub)}</td></tr><tr class="tot"><td colspan="6" class="n">GST ${num(Number(q.gst_pct)||0)}%</td><td class="n">${inr(T.gst)}</td></tr><tr class="tot"><td colspan="6" class="n">Total</td><td class="n">${inr(T.total)}</td></tr></tbody></table></div>
+  ${(q.items||[]).some(l=>qPiece(l)==null)?`<p class="warnq">Some items have no rate yet (shown as —). Choose the price group, or enter the rate, before sending.</p>`:""}
   ${termsHTML(q)}<div class="sign">For ${esc(COMPANY.name)}${DB.signature?`<img src="${DB.signature}" alt="Signature">`:"<br><br><br>"}<b>${esc(SIGNER)}</b><br>Authorised signatory</div>`;
 }
 function closeQView(){const d=$("qview");if(d)d.remove();document.body.classList.remove("hasq");}
@@ -753,13 +755,13 @@ async function quotePDF(q){
   R("QUOTATION",18,fb);R("No. "+q.no,10);R("Date "+fmtD(q.date)+" "+String(q.date).slice(0,4),10);if(q.validity)R("Valid for "+q.validity,10);
   y=H-M-lh-18;page.drawLine({start:{x:M,y},end:{x:W-M,y},thickness:1.5,color:rgb(.12,.23,.18)});y-=22;
   text("To:",M,10,fb);const to=[q.party,q.address,q.gst?"GSTIN "+q.gst:"",q.contact].filter(Boolean);let ty=y;to.forEach((l,i)=>{page.drawText(clean(l),{x:M+22,y:ty,size:10,font:i?f:fb,color:ink});ty-=13;});y=ty-10;
-  const cols=[24,140,50,60,50,58,58,75],x0=[];cols.reduce((a,w)=>{x0.push(a);return a+w;},M);
-  const head=()=>{page.drawRectangle({x:M,y:y-5,width:W-2*M,height:19,color:rgb(.94,.94,.94),borderColor:rgb(.7,.7,.7),borderWidth:.6});["#","Product","Thickness","Size","Pieces","Sq ft","Rate/sq ft","Amount"].forEach((h,i)=>{if(i>3)rtext(h,x0[i]+cols[i]-4,8.5,fb);else text(h,x0[i]+4,8.5,fb);});y-=19;};
+  const cols=[24,148,58,78,58,74,75],x0=[];cols.reduce((a,w)=>{x0.push(a);return a+w;},M);
+  const head=()=>{page.drawRectangle({x:M,y:y-5,width:W-2*M,height:19,color:rgb(.94,.94,.94),borderColor:rgb(.7,.7,.7),borderWidth:.6});["#","Product","Thickness","Size","Pieces",qRateLabel(q).replace("Rate per ","Rate/"),"Amount"].forEach((h,i)=>{if(i>3)rtext(h,x0[i]+cols[i]-4,8.5,fb);else text(h,x0[i]+4,8.5,fb);});y-=19;};
   head();
-  (q.items||[]).forEach((l,i)=>{if(y<110){newPage();head();}const c=qLine(l),none=l.rate==null||l.rate==="";
+  (q.items||[]).forEach((l,i)=>{if(y<110){newPage();head();}const c=qLine(l),none=qPiece(l)==null;
     page.drawRectangle({x:M,y:y-5,width:W-2*M,height:19,borderColor:rgb(.75,.75,.75),borderWidth:.5});
     text(String(i+1),x0[0]+4,9);text((l.product||"")+(l.density?" d"+l.density:""),x0[1]+4,9);text((l.thick||"")+" mm",x0[2]+4,9);text(l.size||"",x0[3]+4,9);
-    rtext(num(l.pieces),x0[4]+cols[4]-4,9);rtext(num(c.sq),x0[5]+cols[5]-4,9);rtext(none?"-":"Rs "+num(l.rate),x0[6]+cols[6]-4,9);rtext(none?"-":rs(c.amt),x0[7]+cols[7]-4,9);y-=19;});
+    rtext(num(l.pieces),x0[4]+cols[4]-4,9);rtext(none?"-":"Rs "+num(qPiece(l)),x0[5]+cols[5]-4,9);rtext(none?"-":rs(c.amt),x0[6]+cols[6]-4,9);y-=19;});
   y-=6;[["Subtotal",rs(T.sub),f],["GST "+num(Number(q.gst_pct)||0)+"%",rs(T.gst),f],["Total",rs(T.total),fb]].forEach(([a,b,font])=>{rtext(a,W-M-110,10,font);rtext(b,W-M-4,10,font);y-=16;});
   {y-=10;if(y<230)newPage();const th="TERMS AND CONDITIONS:";page.drawText(th,{x:M,y,size:10.5,font:fb,color:ink});page.drawLine({start:{x:M,y:y-2},end:{x:M+fb.widthOfTextAtSize(th,10.5),y:y-2},thickness:.8,color:ink});y-=19;
   termRows(q).forEach(r=>{if(y<80)newPage();if(r.text){wrap(r.text,9.5,W-2*M).forEach(l=>{text(l,M,9.5);y-=12.5;});return;}
@@ -861,7 +863,7 @@ document.addEventListener("click",e=>{
   else if(a==="printquote"){if(S.modal&&S.modal.q)readQuote();const q=S.modal&&S.modal.q&&S.modal.q.id===el.dataset.id?S.modal.q:DB.quotations.find(x=>x.id===el.dataset.id);if(q)printQuote(q);}
   else if(a==="qadd"){readQuote().items.push({product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null});renderModal();}
   else if(a==="qdel"){readQuote().items.splice(Number(el.dataset.i),1);renderModal();}
-  else if(a==="qfill"){const q=readQuote(),g=qGroup(q);q.items.forEach(l=>{if(l.rate!=null&&l.rate!=="")return;const r=l.product==="Pallet"?(g&&l.density?listRate(g,l.thick,l.density):null):floorRate(l.product,l.thick);if(r!=null)l.rate=r;});renderModal();if(!g&&q.items.some(l=>l.product==="Pallet"))$("ferr").textContent="Choose a price group, or set the customer's type, to fill pallet rates.";}
+  else if(a==="qfill"){const q=readQuote();qAuto(q);renderModal();}
   else if(a==="csv"){exportScreen();}
   else if(a==="qviewclose"){if(history.state&&history.state.qv)history.back();else closeQView();}
   else if(a==="qprint"){window.print();}
@@ -876,7 +878,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("f-"))liveCalc();if(e.target.id==="tblq"){S.tq=S.tq||{};S.tq[S.view]=e.target.value;filterTables();}});
 document.addEventListener("change",e=>{if(S.modal&&S.modal.q&&e.target.closest&&e.target.closest("#quoteForm")&&(e.target.classList.contains("qi")||["q-gst_pct","q-group","q-party"].includes(e.target.id))){const q=readQuote();
-  if(e.target.dataset.k==="rate"){const l=q.items[e.target.dataset.i];if(l)l.auto=e.target.value==="";}qAuto(q);renderModal();}});
+  if(e.target.dataset.k==="prate"){const l=q.items[e.target.dataset.i];if(l){l.auto=e.target.value==="";l.rate=null;}}qAuto(q);renderModal();}});
 document.addEventListener("change",e=>{if(e.target.id==="stockMonth"&&e.target.value){S.stockMonth=e.target.value;render();}
   if((e.target.id==="prFrom"||e.target.id==="prTo")&&e.target.value){if(e.target.id==="prFrom")S.prFrom=e.target.value;else S.prTo=e.target.value;if(S.prFrom&&S.prTo&&S.prFrom>S.prTo){const t=S.prFrom;S.prFrom=S.prTo;S.prTo=t;}render();}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal){S.modal=null;renderModal();}});
