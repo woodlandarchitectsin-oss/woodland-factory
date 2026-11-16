@@ -79,7 +79,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 .modal{background:var(--surface);border-radius:6px;width:100%;max-width:600px;padding:18px}
 .modal.wide{max-width:860px}
 .modal h2{font-size:24px;font-weight:600;margin-bottom:12px}
-.prow{border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--surface)}.prow .btn{margin-top:10px}
+.othin{margin-top:6px}.othx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.prow{border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--surface)}.prow .btn{margin-top:10px}
 .form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .form label{display:flex;flex-direction:column;gap:3px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
 .form input,.form select{width:100%;padding:8px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
@@ -154,6 +154,8 @@ const floorRate=(grade,thick)=>{const f=((DB.settings.rate_card||{}).flooring||[
 const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g+"%)":"";};
 /* Money received by one of these people counts as wages paid to them. */
 const WAGE_TEAMS=["Hero","Akash Malik"];
+/* Dropdowns whose value drives stock, prices or reports keep a fixed list; every other dropdown also offers "Others". */
+const NO_OTHERS=["status","stage","factory","qc","quality","move","kind","basis","type","state","item","grade","density","price_group","unit","ak_role"];
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
@@ -713,7 +715,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="16 Nov 2026 · received-by v6";
+const APP_VERSION="16 Nov 2026 · others-option v7";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -802,6 +804,8 @@ function renderModal(){
   if(isMultiProd()){L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="Add production"><h2>Add production</h2>${prodFormHTML()}<div class="calc" id="calc"></div><div class="err" id="ferr" role="alert"></div><div class="actions"><button class="btn pri">Save all items</button><button type="button" class="btn" data-a="close">Cancel</button></div></form></div>`;liveCalc();const fi=L.querySelector("select,input");if(fi)fi.focus();return;}
   const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
   const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
+    if(f.o&&!NO_OTHERS.includes(f.k)){const known=f.o.some(o=>String(o)===String(v)),oth=v!==""&&!known,isCust=f.k==="customer"&&["collections","dispatch"].includes(M.t)&&!M.id;
+      return `<select id="${id}" data-oth="1">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}<option value="__other__" ${oth?"selected":""}>Others (type a new one)</option></select><input id="${id}-o" class="othin" placeholder="Type the new ${esc(f.l.replace(/\s*\(.*$/,"").toLowerCase())}" value="${oth?esc(v):""}" autocomplete="off" ${oth?"":"hidden"}>${isCust?`<div class="othx" id="${id}-x" hidden><label>Customer type<select id="${id}-xt">${CTYPES.map(o=>`<option>${esc(o)}</option>`).join("")}</select></label><label>State<select id="${id}-xs">${STATES.map(o=>`<option>${esc(o)}</option>`).join("")}</select></label></div>`:""}`;}
     if(f.o)return `<select id="${id}">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
     if(f.dl)return `<input id="${id}" list="${id}-l" value="${esc(v)}" ${f.req?"required":""} autocomplete="off"><datalist id="${id}-l">${f.dl().map(o=>`<option value="${esc(o)}">`).join("")}</datalist>`;
     return `<input id="${id}" type="${f.t||"text"}" ${f.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${esc(v)}" ${f.req?"required":""} autocomplete="off">`;};
@@ -842,7 +846,10 @@ async function saveProduction(){
 async function saveForm(){
   if(isMultiProd())return saveProduction();
   const M=S.modal,rec=M.id?{id:M.id}:{},btn=document.querySelector("#recForm .btn.pri");
-  formFields(M.t).forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
+  let newCust=null;
+  for(const f of formFields(M.t)){const se=$("f-"+f.k);if(se&&se.dataset.oth&&se.value==="__other__"){const t=$("f-"+f.k+"-o").value.trim();if(!t){$("ferr").textContent=`Type the new ${f.l.replace(/\s*\(.*$/,"").toLowerCase()} in the box under “${f.l}”, or choose from the list.`;return;}
+    if(f.k==="customer"&&!M.id){const hit=DB.customers.find(c=>String(c.name).toLowerCase()===t.toLowerCase());if(!hit)newCust={name:t,type:$("f-customer-xt").value,state:$("f-customer-xs").value};}}}
+  formFields(M.t).forEach(f=>{const se=$("f-"+f.k);let v=(se.dataset.oth&&se.value==="__other__"?(f.k==="customer"&&DB.customers.find(c=>String(c.name).toLowerCase()===$("f-"+f.k+"-o").value.trim().toLowerCase())||{name:$("f-"+f.k+"-o").value.trim()}).name:se.value.trim());if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
   if(M.t==="orders"&&rec.dispatched&&rec.value!=null&&Number(rec.received||0)<Number(rec.value)&&!M.payOK){M.payOK=true;$("ferr").textContent="Payment isn't complete. Press Save again only if this dispatch was approved anyway.";return;}
   if(M.t==="dispatch"&&!rec.customer){$("ferr").textContent="Add a customer before entering a dispatch.";return;}
   if(!M.id&&!M.dupOK){const same=(a,b)=>Number(a)===Number(b);let dup=null;
@@ -864,9 +871,10 @@ async function saveForm(){
       if(Number(rec.sheets)>Number(data)){M.stockOK=true;$("ferr").textContent=`The records show only ${num(data)} of these pieces at ${rec.factory}. Check the entry, or press Save again to record it anyway.`;btn.disabled=false;btn.textContent="Save";return;}
     }
     if(M.t==="stock_moves")rec.unit=rec.kind==="Finished"?"sq ft":rmUnit(rec.item);
-    if(M.t==="collections"){if(!WAGE_TEAMS.includes(rec.received_by)){rec.received_by=null;if(!M.id)delete rec.received_by;}}
+    if(newCust)await Api.save("customers",newCust);
+    if(M.t==="collections"){if(!rec.received_by||rec.received_by==="Akolite"){rec.received_by=null;if(!M.id)delete rec.received_by;}}
     await Api.save(M.t,rec);
-    if(M.t==="collections"&&!M.id&&rec.received_by){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:"Wages",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type Wages. "+friendly(e));return;}}
+    if(M.t==="collections"&&!M.id&&WAGE_TEAMS.includes(rec.received_by)){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:"Wages",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type Wages. "+friendly(e));return;}}
     S.modal=null;renderModal();render();
   }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
 }
@@ -918,6 +926,7 @@ document.addEventListener("click",e=>{
   else if(a==="del"){el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
   else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
 });
+document.addEventListener("change",e=>{if(e.target.dataset&&e.target.dataset.oth){const o=e.target.value==="__other__",i=$(e.target.id+"-o"),x=$(e.target.id+"-x");if(i){i.hidden=!o;if(o)i.focus();}if(x)x.hidden=!o;}});
 document.addEventListener("change",e=>{const g=e.target.closest&&e.target.matches("[data-k=grade]")&&e.target.closest(".prow");if(!g)return;const pal=isPallet(e.target.value),sz=g.querySelector("[data-k=size]");g.querySelector(".szl").textContent=pal?"Size in mm (900x550) *":"Size in inches (96x48) *";sz.placeholder=pal?"900x550":"96x48";liveCalc();});
 document.addEventListener("input",e=>{if((e.target.id&&e.target.id.startsWith("f-"))||(e.target.closest&&e.target.closest(".prow")))liveCalc();if(e.target.id==="tblq"){S.tq=S.tq||{};S.tq[S.view]=e.target.value;filterTables();}});
 document.addEventListener("change",e=>{if(S.modal&&S.modal.q&&e.target.closest&&e.target.closest("#quoteForm")&&(e.target.classList.contains("qi")||["q-gst_pct","q-group","q-party"].includes(e.target.id))){const q=readQuote();
