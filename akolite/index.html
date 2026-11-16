@@ -79,6 +79,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 .modal{background:var(--surface);border-radius:6px;width:100%;max-width:600px;padding:18px}
 .modal.wide{max-width:860px}
 .modal h2{font-size:24px;font-weight:600;margin-bottom:12px}
+.prow{border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--surface)}.prow .btn{margin-top:10px}
 .form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .form label{display:flex;flex-direction:column;gap:3px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
 .form input,.form select{width:100%;padding:8px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
@@ -163,8 +164,8 @@ const fmtD=d=>d?new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"2-digit
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=n=>new Intl.NumberFormat("en-IN",{maximumFractionDigits:1}).format(n||0);
 const inr=n=>(n<0?"-":"")+"₹"+new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}).format(Math.abs(n||0));
-/* Plywood sizes are in feet (8x4). Pallet sizes are in mm (900x550). */
-const area=s=>{const[a,b]=String(s).toLowerCase().split(/[x×*]/).map(Number);if(!a||!b)return 0;return a>100?a*b/92903:a*b;};
+/* Pallet sizes are in mm (900x550). TF and chequered sheets are in inches (96x48). Older entries in feet (8x4) still work: up to 20 means feet, 21 to 200 inches, above 200 mm. */
+const area=s=>{const[a,b]=String(s).toLowerCase().replace(/["'″”]|\s|mm|in|ft/g,"").split(/[x×*]/).map(Number);if(!a||!b)return 0;return a>200?a*b/92903:a>20?a*b/144:a*b;};
 const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
@@ -439,8 +440,8 @@ today(){
   const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),mo=T.slice(0,7),openDue=can("stock")&&!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo)&&!DB.stock_moves.some(r=>r.move==="Opening"&&String(r.date).slice(0,7)===mo);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   const low=stockDays().filter(x=>x.days!=null&&x.days<7&&inF(x)),wk=addDays(T,-6),failed=[...DB.inward.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Inward",what:r.item+(r.supplier?" from "+r.supplier:"")})),...DB.dispatch.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Dispatch",what:[r.customer,r.grade,r.thick+" mm"].filter(Boolean).join(" · ")}))];
-  const QUICK=[["production","add","production","Add production"],["inward","add","inward","Add inward"],["dispatch","add","dispatch","Add dispatch"],["stock|stock_raw","add","stock_moves","Add stock entry"],["money","add","collections","Payment received"],["money","add","payments","Payment made"],["money","add","payables","Add supplier bill"],["leads","newquote","","New quotation"],["leads","add","orders","Add lead"],["leads","add","followups","Add follow-up"]].filter(q=>q[0].split("|").some(can));
-  const quick=QUICK.length?`<div class="quick">${QUICK.map(([,a,t,l])=>`<button class="btn pri" data-a="${a}" ${t?`data-t="${t}"`:""} ${t==="stock_moves"?'data-k="Raw"':""}>${esc(l)}</button>`).join("")}</div>`:"";
+  const QUICK=[["production","production","Production"],["inward","inward","Inward"],["dispatch","dispatch","Dispatch"],["stock|stock_raw","raw","Stock entries"],["money","money","Payments received / made"],["money","payables","Supplier bills"],["leads","quotes","Quotations"],["leads","orders","Leads and orders"],["leads","followups","Follow-ups"]].filter(q=>q[0].split("|").some(can));
+  const quick=QUICK.length?`<div class="quick">${QUICK.map(([,v,l])=>`<button class="btn pri" data-a="view" data-v="${v}">${esc(l)}</button>`).join("")}</div>`:"";
   return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+quick+
   (openDue?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">This month's opening stock hasn't been entered. It's due on the 1st.</div>`:"")+(can("leads")&&(lateO.length||repO.length)?`<div class="tiles">${tile(lateO.length,"Late orders",null,lateO.length>0)}${tile(repO.length,"Repeat orders due")}</div>`:"")+(low.length?panel("Raw material running low · "+low.length,tbl(["Factory","Material","In stock#","Used per day#","Days left#"],low.map(x=>`<tr><td>${esc(x.factory)}</td><td>${esc(x.item)}</td><td class="n">${num(x.balance)} ${esc(x.unit)}</td><td class="n">${num(x.perDay)}</td><td class="n"><span class="pill crit">${x.days<=0?"Out":num(x.days)}</span></td></tr>`)),"alert"):"")+(failed.length?panel("Failed quality checks, last 7 days · "+failed.length,tbl(["Date","In or out","Details","Note"],failed.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${r.kind}</td><td>${esc(r.what)}</td><td>${esc(r.qc_note)}</td></tr>`)),"alert"):"")+(dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>/veneer/i.test(r.item)).reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${can("money")?tile(inr(col),"Collections today")+tile(inr(pay),"Payments made today"):""}</div>`+
   (!can("money")?"":panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":""))+
@@ -672,8 +673,8 @@ const FORMS={
   factory_reports:{one:"production report",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"production_sheets",l:"Total pieces",t:"number"},{k:"pallets_nos",l:"Pallets (nos.)",t:"number"},{k:"pallet_thick",l:"Pallet thickness (mm)",t:"number"},{k:"press_rate",l:"Rate (₹/sq ft, 12 mm basis)",t:"number",money:1},{k:"loads",l:"Loads",t:"number"},{k:"pressed_sqft",l:"Pressed (sq ft)",t:"number"},{k:"peeling_sqft",l:"Peeling (sq ft)",t:"number"},{k:"peeling_rate",l:"Peeling rate (₹/sq ft)",t:"number",money:1},{k:"drying_sqft",l:"Drying (sq ft)",t:"number"},{k:"drying_rate",l:"Drying rate (₹/sq ft)",t:"number",money:1},{k:"boiler_rate",l:"Boiler (₹/sq ft)",t:"number",money:1},{k:"rejected",l:"Rejected (nos.)",t:"number"},{k:"remarks",l:"Remarks"}]},
   vendors:{one:"vendor",f:()=>[{k:"name",l:"Vendor name",req:1},{k:"type",l:"Supplies"},{k:"state",l:"State"},{k:"contact",l:"Contact person"},{k:"phone",l:"Phone"},{k:"gst",l:"GST number"},{k:"terms",l:"Payment terms"},{k:"remarks",l:"Remarks"}]},
   payables:{one:"bill",f:()=>[{k:"vendor",l:"Vendor",req:1},{k:"bill",l:"Bill no."},{k:"date",l:"Bill date",t:"date"},{k:"due",l:"Due date",t:"date"},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"status",l:"Status",o:["Pending","Paid"]},{k:"remarks",l:"Remarks"}]},
-  production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good pieces",t:"number",req:1},{k:"second",l:"Second-grade pieces",t:"number"},{k:"rejected",l:"Rejected pieces",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
-  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (900x550 mm, or 8x4 ft)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces (TF and CHQ are counted in sq ft from the size)",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft","Per piece","Per sq ft per mm"],admin:1}]},
+  production:{one:"production",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (pallet in mm: 900x550 · TF and chequered in inches: 96x48)",req:1},{k:"stage",l:"Stage reached",o:isAdmin()?[...STAGES,"Opening stock"]:STAGES},{k:"sheets",l:"Good pieces",t:"number",req:1},{k:"second",l:"Second-grade pieces",t:"number"},{k:"rejected",l:"Rejected pieces",t:"number"},{k:"core_used",l:"Core veneer used (sq ft at 1 mm)",t:"number"},{k:"face_used",l:"Face veneer used (sq ft at 1 mm)",t:"number"},{k:"resin_kg",l:"Resin used (kg)",t:"number"}]},
+  dispatch:{one:"dispatch",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"customer",l:"Customer",o:custNames()},{k:"grade",l:"Grade",o:GRADES},{k:"thick",l:"Thickness (mm)",t:"number",req:1},{k:"size",l:"Size (pallet in mm: 900x550 · TF and chequered in inches: 96x48)",req:1},{k:"quality",l:"Quality",o:["First","Second"]},{k:"sheets",l:"Pieces (TF and CHQ are counted in sq ft from the size)",t:"number",req:1},{k:"vehicle",l:"Vehicle no."},{k:"challan",l:"Challan no."},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"},{k:"rate",l:"Rate (₹)",t:"number",admin:1},{k:"basis",l:"Rate is",o:["Per sq ft","Per piece","Per sq ft per mm"],admin:1}]},
   inward:{one:"inward",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RM_ITEMS.map(x=>x[0])},{k:"supplier",l:"Supplier"},{k:"qty",l:"Quantity, in the material’s unit (timber in tonnes, resin in kg, veneer in sq ft)",t:"number",req:1},{k:"mm",l:"Thickness in mm (veneer)",t:"number"},{k:"amount",l:"Amount (₹)",t:"number",money:1},{k:"qc",l:"Quality check",o:["","Passed","Failed","Not checked"]},{k:"qc_note",l:"Quality note"}]},
   customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"address",l:"Bill address"},{k:"credit_days",l:"Credit days",t:"number",money:1},{k:"credit_limit",l:"Credit limit (₹)",t:"number",money:1}]},
   stock_moves:{one:"stock entry",f:()=>{const k=(S.modal&&S.modal.k)||(S.modal&&S.modal.id&&(DB.stock_moves.find(r=>r.id===S.modal.id)||{}).kind)||"Finished";return [{k:"date",l:"Date",t:"date",req:1},{k:"kind",l:"Stock",o:[k]},{k:"item",l:k==="Finished"?"Product":"Material",o:k==="Finished"?FG_ITEMS:RM_ITEMS.map(x=>x[0]),req:1},{k:"move",l:"Entry",o:MOVES},{k:"qty",l:k==="Finished"?"Quantity (sq ft)":"Quantity (in the material's unit)",t:"number",req:1},{k:"remarks",l:"Remarks"}];}},
@@ -710,7 +711,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="12 Nov 2026 · rate per pallet v3";
+const APP_VERSION="16 Nov 2026 · multi-item production v5";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -779,10 +780,24 @@ async function saveQuotePDF(q){
   const u=URL.createObjectURL(file),a=document.createElement("a");a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);
 }
 
+/* ---- production: several items in one report ---- */
+const isMultiProd=()=>!!S.modal&&S.modal.t==="production"&&!S.modal.id;
+function prodRowHTML(){
+  const sel=(k,o)=>`<select data-k="${k}">${o.map(x=>`<option>${esc(x)}</option>`).join("")}</select>`,num_=(k,ph)=>`<input data-k="${k}" type="number" step="any" min="0" inputmode="decimal" placeholder="${ph||""}" autocomplete="off">`;
+  return `<div class="prow"><div class="form"><label>Grade${sel("grade",GRADES)}</label><label>Thickness (mm) *${num_("thick")}</label><label><span class="szl">Size in mm (900x550) *</span><input data-k="size" placeholder="900x550" autocomplete="off"></label><label>Good pieces * <span class="sub">(number of sheets or pallets)</span>${num_("sheets")}</label><label>Second-grade pieces${num_("second")}</label><label>Rejected pieces${num_("rejected")}</label></div><button type="button" class="btn sm dang" data-a="delrow">Remove this item</button></div>`;
+}
+function prodFormHTML(){
+  const f=k=>formFields("production").find(x=>x.k===k),one=k=>{const x=f(k);if(!x)return"";const id="f-"+k;return `<label>${esc(x.l)}${x.req?" *":""}${x.o?`<select id="${id}">${x.o.map(o=>`<option>${esc(o)}</option>`).join("")}</select>`:`<input id="${id}" type="${x.t||"text"}" ${x.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${x.t==="date"?today():""}" ${x.req?"required":""} autocomplete="off">`}</label>`;};
+  return `<div class="form">${one("date")}${one("factory")}${one("stage")}</div>
+  <h3 style="margin:14px 0 4px;font-size:15px">Items produced</h3><div class="sub" style="margin-bottom:8px">Add every item made in this report: TF, chequered sheets, pallets and so on, each with its own number of pieces.</div>
+  <div id="prows">${prodRowHTML()}</div><button type="button" class="btn" data-a="addrow">+ Add another item</button>
+  <h3 style="margin:14px 0 4px;font-size:15px">Materials used (for the whole report, optional)</h3><div class="form">${["core_used","face_used","resin_kg"].map(one).join("")}</div>`;
+}
 function renderModal(){
   const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
   if(M.q){L.innerHTML=quoteModal(M);return;}
   if(M.report){L.innerHTML=`<div class="wrap" data-a="closebg"><div class="modal wide" data-stop="1" role="dialog" aria-modal="true" aria-label="Weekly report"><h2>Monday report</h2>${weeklyHTML()}<div class="actions"><button class="btn pri" data-a="close">Close</button></div></div></div>`;return;}
+  if(isMultiProd()){L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="Add production"><h2>Add production</h2>${prodFormHTML()}<div class="calc" id="calc"></div><div class="err" id="ferr" role="alert"></div><div class="actions"><button class="btn pri">Save all items</button><button type="button" class="btn" data-a="close">Cancel</button></div></form></div>`;liveCalc();const fi=L.querySelector("select,input");if(fi)fi.focus();return;}
   const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
   const ctl=f=>{const v=r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
     if(f.o)return `<select id="${id}">${f.o.map(o=>`<option ${String(o)===String(v)?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
@@ -798,12 +813,32 @@ function liveCalc(){
   if(S.modal.t==="orders"){const r={party:$("f-party").value.trim(),price_group:$("f-price_group").value,thick:$("f-thick").value,density:$("f-density").value,qty:$("f-qty").value,pallet_size:$("f-pallet_size").value};
     const g=groupOf(r),lr=g&&r.thick&&r.density?listRate(g,r.thick,r.density):null,a=area(r.pallet_size);
     c.textContent=!g?"Choose a price group, or set the customer's type, to see the list rate.":lr==null?`No list rate for ${r.thick||"?"} mm at density ${r.density||"?"} in the ${g}% group.`:`List rate ${groupLabel(g)}: ₹${num(lr)} per sq ft`+(a&&Number(r.qty)?` · ${num(r.qty)} × ${num(a)} sq ft = ₹${num(Math.round(lr*a*Number(r.qty)))}`:"");return;}
+  if(isMultiProd()){const rs=[...document.querySelectorAll(".prow")].map(readRow).filter(r=>Number(r.sheets)>0);
+    c.textContent=rs.length?rs.map(r=>`${r.grade}: ${num(r.sheets)} pieces`+(area(r.size)?` = ${num(sqft(r))} sq ft`:"")).join("  ·  ")+(rs.length>1?`  ·  Total ${num(rs.reduce((a,r)=>a+Number(r.sheets),0))} pieces`:""):"";return;}
   if(!["production","dispatch"].includes(S.modal.t))return;
   const r={sheets:$("f-sheets").value,size:$("f-size").value,thick:$("f-thick").value};
   const fr=S.modal.t==="dispatch"&&$("f-grade")?floorRate($("f-grade").value,r.thick):null;
   c.textContent=(fr!=null?`Full-truckload list rate: ₹${num(fr)} per sq ft. `:"")+(Number(r.sheets)?`${num(r.sheets)} pieces × ${num(area(r.size))} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"");
 }
+function readRow(el){const o={};el.querySelectorAll("[data-k]").forEach(i=>{const v=i.value.trim();o[i.dataset.k]=i.type==="number"?(v===""?null:Number(v)):v;});return o;}
+async function saveProduction(){
+  const M=S.modal,btn=document.querySelector("#recForm .btn.pri"),err=m=>{$("ferr").textContent=m;},g=k=>$("f-"+k).value.trim(),n=k=>g(k)===""?null:Number(g(k));
+  const base={date:g("date"),factory:g("factory"),stage:g("stage")},use={core_used:n("core_used"),face_used:n("face_used"),resin_kg:n("resin_kg")};
+  if(!base.date)return err("Choose the date.");
+  const rows=[...document.querySelectorAll(".prow")].map(readRow);
+  for(let i=0;i<rows.length;i++){const r=rows[i],w=rows.length>1?`Item ${i+1}: `:"";
+    if(!r.thick)return err(w+"Enter the thickness.");if(!r.size)return err(w+"Enter the size.");if(!(Number(r.sheets)>0))return err(w+"Enter the number of good pieces.");}
+  if(!M.dateOK&&base.date>today()){M.dateOK=true;return err(`The date is in the future (${fmtD(base.date)} ${String(base.date).slice(0,4)}). Press Save again if that's right.`);}
+  if(!M.dupOK){const dup=rows.find(r=>DB.production.find(x=>x.date===base.date&&x.grade===r.grade&&x.size===r.size&&Number(x.thick)===Number(r.thick)&&Number(x.sheets)===Number(r.sheets)&&x.stage===base.stage));
+    if(dup){M.dupOK=true;return err(`${dup.grade} ${dup.thick} mm, ${dup.size}, ${num(dup.sheets)} pieces looks like an entry that's already saved. Press Save again only if it really is a second one.`);}}
+  btn.disabled=true;btn.textContent="Saving…";let done=0;
+  try{for(let i=0;i<rows.length;i++){await Api.save("production",{...base,...rows[i],...(i===0?use:{})});done++;}
+    S.modal=null;renderModal();render();}
+  catch(e){err((done?`${done} of ${rows.length} items saved before this problem. Do not enter those again. `:"")+friendly(e));btn.disabled=false;btn.textContent="Save all items";
+    if(done)[...document.querySelectorAll(".prow")].slice(0,done).forEach(x=>x.remove());}
+}
 async function saveForm(){
+  if(isMultiProd())return saveProduction();
   const M=S.modal,rec=M.id?{id:M.id}:{},btn=document.querySelector("#recForm .btn.pri");
   formFields(M.t).forEach(f=>{let v=$("f-"+f.k).value.trim();if(f.t==="number"||f.k==="thick")v=v===""?null:Number(v);rec[f.k]=v===""?null:v;});
   if(M.t==="orders"&&rec.dispatched&&rec.value!=null&&Number(rec.received||0)<Number(rec.value)&&!M.payOK){M.payOK=true;$("ferr").textContent="Payment isn't complete. Press Save again only if this dispatch was approved anyway.";return;}
@@ -857,6 +892,8 @@ document.addEventListener("click",e=>{
   else if(a==="factory"){S.factory=el.dataset.v;render();}
   else if(a==="logout"){signOut();}
   else if(a==="backup"){downloadBackup();}
+  else if(a==="addrow"){$("prows").insertAdjacentHTML("beforeend",prodRowHTML());const l=$("prows").lastElementChild.querySelector("select");if(l)l.focus();liveCalc();}
+  else if(a==="delrow"){if(document.querySelectorAll(".prow").length>1){el.closest(".prow").remove();liveCalc();}else $("ferr").textContent="A report needs at least one item.";}
   else if(a==="add"){S.modal={t:el.dataset.t,k:el.dataset.k};renderModal();}
   else if(a==="newquote"){const d=today(),c=null;S.modal={q:{no:qNumber(d),date:d,party:"",items:[{product:"Pallet",thick:null,density:"",size:"",pieces:null,rate:null}],gst_pct:18,validity:"7 days",status:"Draft",notes:Q_TERMS}};renderModal();}
   else if(a==="editquote"){const q=DB.quotations.find(x=>x.id===el.dataset.id);if(q){S.modal={q:qMigrate(JSON.parse(JSON.stringify({...q,items:q.items||[]})))};renderModal();}}
@@ -876,7 +913,8 @@ document.addEventListener("click",e=>{
   else if(a==="del"){el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
   else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
 });
-document.addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("f-"))liveCalc();if(e.target.id==="tblq"){S.tq=S.tq||{};S.tq[S.view]=e.target.value;filterTables();}});
+document.addEventListener("change",e=>{const g=e.target.closest&&e.target.matches("[data-k=grade]")&&e.target.closest(".prow");if(!g)return;const pal=isPallet(e.target.value),sz=g.querySelector("[data-k=size]");g.querySelector(".szl").textContent=pal?"Size in mm (900x550) *":"Size in inches (96x48) *";sz.placeholder=pal?"900x550":"96x48";liveCalc();});
+document.addEventListener("input",e=>{if((e.target.id&&e.target.id.startsWith("f-"))||(e.target.closest&&e.target.closest(".prow")))liveCalc();if(e.target.id==="tblq"){S.tq=S.tq||{};S.tq[S.view]=e.target.value;filterTables();}});
 document.addEventListener("change",e=>{if(S.modal&&S.modal.q&&e.target.closest&&e.target.closest("#quoteForm")&&(e.target.classList.contains("qi")||["q-gst_pct","q-group","q-party"].includes(e.target.id))){const q=readQuote();
   if(e.target.dataset.k==="prate"){const l=q.items[e.target.dataset.i];if(l){l.auto=e.target.value==="";l.rate=null;}}qAuto(q);renderModal();}});
 document.addEventListener("change",e=>{if(e.target.id==="stockMonth"&&e.target.value){S.stockMonth=e.target.value;render();}
