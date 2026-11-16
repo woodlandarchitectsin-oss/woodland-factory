@@ -446,7 +446,7 @@ today(){
   const low=stockDays().filter(x=>x.days!=null&&x.days<7&&inF(x)),wk=addDays(T,-6),failed=[...DB.inward.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Inward",what:r.item+(r.supplier?" from "+r.supplier:"")})),...DB.dispatch.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Dispatch",what:[r.customer,r.grade,r.thick+" mm"].filter(Boolean).join(" · ")}))];
   const QUICK=[["production","production","Production"],["inward","inward","Inward"],["dispatch","dispatch","Dispatch"],["stock|stock_raw","raw","Stock entries"],["money","sales","Sales"],["money","money","Payments received / made"],["money","payables","Supplier bills"],["leads","quotes","Quotations"],["leads","orders","Leads and orders"],["leads","followups","Follow-ups"]].filter(q=>q[0].split("|").some(can));
   const quick=QUICK.length?`<div class="quick">${QUICK.map(([,v,l])=>`<button class="btn pri" data-a="view" data-v="${v}">${esc(l)}</button>`).join("")}</div>`:"";
-  return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+quick+
+  return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+quick+periodStrip()+
   (openDue?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">This month's opening stock hasn't been entered. It's due on the 1st.</div>`:"")+(can("leads")&&(lateO.length||repO.length)?`<div class="tiles">${tile(lateO.length,"Late orders",null,lateO.length>0)}${tile(repO.length,"Repeat orders due")}</div>`:"")+(low.length?panel("Raw material running low · "+low.length,tbl(["Factory","Material","In stock#","Used per day#","Days left#"],low.map(x=>`<tr><td>${esc(x.factory)}</td><td>${esc(x.item)}</td><td class="n">${num(x.balance)} ${esc(x.unit)}</td><td class="n">${num(x.perDay)}</td><td class="n"><span class="pill crit">${x.days<=0?"Out":num(x.days)}</span></td></tr>`)),"alert"):"")+(failed.length?panel("Failed quality checks, last 7 days · "+failed.length,tbl(["Date","In or out","Details","Note"],failed.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${r.kind}</td><td>${esc(r.what)}</td><td>${esc(r.qc_note)}</td></tr>`)),"alert"):"")+(dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>/veneer/i.test(r.item)).reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${can("money")?tile(inr(col),"Collections today")+tile(inr(pay),"Payments made today"):""}</div>`+
   (!can("money")?"":panel("Overdue payments · "+rec.length,tbl(["Customer","State","Overdue since","Overdue#"],rec.map(x=>`<tr><td>${esc(x.c.name)}${x.overLimit?' <span class="pill crit">Over credit limit</span>':""}</td><td>${esc(x.c.state)}</td><td class="nw">${esc(fmtD(x.oldest))}</td><td class="n"><b>${inr(x.overdue)}</b></td></tr>`),"No payments are overdue."),rec.length?"alert":""))+
   (up.length&&can("money")?panel("Dispatches waiting for a price · "+up.length,tbl(["Date","Customer","Item","Pieces#",""],up.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.grade)} · ${r.thick} mm · ${esc(r.size)}</td><td class="n">${num(r.sheets)}</td><td><button class="btn sm" data-a="edit" data-t="dispatch" data-id="${r.id}">Set price</button></td></tr>`))):"");
@@ -730,7 +730,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="16 Nov 2026 · others-everywhere v11";
+const APP_VERSION="17 Nov 2026 · period-strip v12";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -811,6 +811,19 @@ function prodFormHTML(){
   <h3 style="margin:14px 0 4px;font-size:15px">Items produced</h3><div class="sub" style="margin-bottom:8px">Add every item made in this report: TF, chequered sheets, pallets and so on, each with its own number of pieces.</div>
   <div id="prows">${prodRowHTML()}</div><button type="button" class="btn" data-a="addrow">+ Add another item</button>
   <h3 style="margin:14px 0 4px;font-size:15px">Materials used (for the whole report, optional)</h3><div class="form">${["core_used","face_used","resin_kg"].map(one).join("")}</div>`;
+}
+function periodStrip(){
+  const N=S.todayDays||30,T=today(),a=addDays(T,-(N-1)),pa=addDays(T,-(2*N-1)),pb=addDays(T,-N);
+  const inR=(r,x,y)=>r.date>=x&&r.date<=y,prod=(x,y)=>Api.rows("production").filter(r=>r.stage!=="Opening stock"&&inR(r,x,y)).filter(inF),dis=(x,y)=>Api.rows("dispatch").filter(r=>inR(r,x,y)).filter(inF);
+  const sum=(rows,f)=>rows.reduce((t,r)=>t+f(r),0),sales=(x,y)=>sum(dis(x,y),r=>dispatchAmount(r)||0)+sum(DB.party_entries.filter(r=>r.kind==="Sale"&&inR(r,x,y)),r=>Number(r.amount)||0);
+  const chg=(c,p)=>p>0?{t:(c>=p?"+":"")+num((c-p)/p*100)+"% vs previous "+N+" days",hot:c<p}:null;
+  const tiles=[];
+  if(can("money")){const c=sales(a,T),pv=sales(pa,pb),g=chg(c,pv);tiles.push(tile(inr(c),"Sales, "+N+" days",g&&g.t,g&&g.hot));}
+  if(can("production")){const c=sum(prod(a,T),sqft),pv=sum(prod(pa,pb),sqft),g=chg(c,pv);tiles.push(tile(num(c)+" sq ft","Production, "+N+" days",num(sum(prod(a,T),r=>Number(r.sheets)||0))+" pieces"+(g?" · "+g.t:""),g&&g.hot));}
+  if(can("dispatch")){const d=dis(a,T);tiles.push(tile(num(sum(d,sqft))+" sq ft","Dispatched, "+N+" days",d.length+" dispatches · "+num(sum(d,r=>Number(r.sheets)||0))+" pieces"));}
+  if(can("money")){const c=sum(Api.rows("collections").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0),pd=sum(Api.rows("payments").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0);tiles.push(tile(inr(c),"Collected, "+N+" days"));tiles.push(tile(inr(pd),"Payments made, "+N+" days"));}
+  if(!tiles.length)return "";
+  return `<div class="row" style="gap:6px;margin:4px 0 10px;flex-wrap:wrap" role="group" aria-label="Period">${[7,30,60].map(d=>`<button class="btn ${N===d?"pri":""}" data-a="period" data-d="${d}" aria-pressed="${N===d}">${d} days</button>`).join("")}<span class="sub" style="align-self:center">${fmtD(a)} to ${fmtD(T)}</span></div><div class="tiles">${tiles.join("")}</div>`;
 }
 function renderModal(){
   const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
@@ -920,6 +933,7 @@ document.addEventListener("click",e=>{
   else if(a==="factory"){S.factory=el.dataset.v;render();}
   else if(a==="logout"){signOut();}
   else if(a==="backup"){downloadBackup();}
+  else if(a==="period"){S.todayDays=Number(el.dataset.d)||30;render();}
   else if(a==="addrow"){$("prows").insertAdjacentHTML("beforeend",prodRowHTML());const l=$("prows").lastElementChild.querySelector("select");if(l)l.focus();liveCalc();}
   else if(a==="delrow"){if(document.querySelectorAll(".prow").length>1){el.closest(".prow").remove();liveCalc();}else $("ferr").textContent="A report needs at least one item.";}
   else if(a==="add"){S.modal={t:el.dataset.t,k:el.dataset.k};renderModal();}
