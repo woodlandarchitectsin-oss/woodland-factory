@@ -152,6 +152,8 @@ const listRate=(g,thick,d)=>{const c=(DB.settings.rate_card||{}).groups||{};retu
 const FLOOR_GRADE={"TF":"Truck flooring","CHQ":"Chequered plywood","Truck-Flooring Panels":"Truck flooring","Chequered Plywood":"Chequered plywood"};
 const floorRate=(grade,thick)=>{const f=((DB.settings.rate_card||{}).flooring||[]).find(x=>x.product===FLOOR_GRADE[grade]&&Number(x.thick)===Number(thick));return f?Number(f.rate):null;};
 const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g+"%)":"";};
+/* Money received by one of these people counts as wages paid to them. */
+const WAGE_TEAMS=["Hero","Akash Malik"];
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
@@ -384,7 +386,7 @@ function ledgerRows(name){
   const c=DB.customers.find(x=>x.name===name)||{};let bal=0;
   const rows=[...DB.party_entries.filter(r=>r.customer===name).map(r=>({date:r.date,t:"party_entries",id:r.id,what:(r.kind==="Opening balance"?"Opening balance":"Sales"+(r.part?" · "+r.part.toLowerCase()+" amount":""))+(r.remarks?" · "+r.remarks:""),debit:Number(r.amount)||0,credit:0,first:r.kind==="Opening balance"})),
     ...DB.dispatch.filter(r=>r.customer===name&&dispatchAmount(r)!=null).map(r=>({date:r.date,what:"Dispatch"+(r.challan?" · challan "+r.challan:"")+" · "+[r.grade,r.thick+" mm",r.size,num(r.sheets)+" pieces"].join(" · "),debit:dispatchAmount(r),credit:0})),
-    ...DB.collections.filter(r=>r.customer===name).map(r=>({date:r.date,t:"collections",id:r.id,what:"Payment received"+(r.mode?" · "+r.mode:""),debit:0,credit:Number(r.amount)}))]
+    ...DB.collections.filter(r=>r.customer===name).map(r=>({date:r.date,t:"collections",id:r.id,what:"Payment received"+(r.mode?" · "+r.mode:"")+(r.received_by?" · received by "+r.received_by:""),debit:0,credit:Number(r.amount)}))]
     .sort((a,b)=>(b.first?1:0)-(a.first?1:0)||a.date.localeCompare(b.date)||b.debit-a.debit);
   rows.forEach(r=>{bal+=r.debit-r.credit;r.balance=bal;});
   return {c,rows,bal};
@@ -534,7 +536,7 @@ rates(){
 money(){
   const c=[...DB.collections].sort((a,b)=>b.date.localeCompare(a.date)),p=[...DB.payments].sort((a,b)=>b.date.localeCompare(a.date));
   return head("Collections & payments","",`<button class="btn pri" data-a="add" data-t="collections">Add collection</button><button class="btn pri" data-a="add" data-t="payments">Add payment</button>`)+`<div class="grid2">`+
-  panel("Collections",tbl(["Date","Customer","Mode","Amount#","Entered by",""],c.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="collections" data-id="${r.id}">Edit</button></td></tr>`)))+
+  panel("Collections",tbl(["Date","Customer","Received by","Mode","Amount#","Entered by",""],c.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.customer)}</td><td>${esc(r.received_by||"Akolite")}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="collections" data-id="${r.id}">Edit</button></td></tr>`)))+
   panel("Payments made",tbl(["Date","Paid to","Type","Amount#","Entered by",""],p.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.payee)}</td><td>${esc(r.category)}</td><td class="n">${inr(r.amount)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="payments" data-id="${r.id}">Edit</button></td></tr>`)))+`</div>`;
 },
 reports(){
@@ -679,7 +681,7 @@ const FORMS={
   customers:{one:"customer",f:()=>[{k:"name",l:"Customer name",req:1},{k:"type",l:"Type",o:CTYPES},{k:"state",l:"State",o:STATES},{k:"salesperson",l:"Payment follow-up by"},{k:"contact",l:"Contact and phone"},{k:"gst",l:"GST number"},{k:"address",l:"Bill address"},{k:"credit_days",l:"Credit days",t:"number",money:1},{k:"credit_limit",l:"Credit limit (₹)",t:"number",money:1}]},
   stock_moves:{one:"stock entry",f:()=>{const k=(S.modal&&S.modal.k)||(S.modal&&S.modal.id&&(DB.stock_moves.find(r=>r.id===S.modal.id)||{}).kind)||"Finished";return [{k:"date",l:"Date",t:"date",req:1},{k:"kind",l:"Stock",o:[k]},{k:"item",l:k==="Finished"?"Product":"Material",o:k==="Finished"?FG_ITEMS:RM_ITEMS.map(x=>x[0]),req:1},{k:"move",l:"Entry",o:MOVES},{k:"qty",l:k==="Finished"?"Quantity (sq ft)":"Quantity (in the material's unit)",t:"number",req:1},{k:"remarks",l:"Remarks"}];}},
   party_entries:{one:"sale or opening balance",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames(),req:1},{k:"kind",l:"Entry",o:["Sale","Opening balance"]},{k:"part",l:"Bill or cash amount",o:["","Bill","Cash"]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"remarks",l:"Remarks"}]},
-  collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
+  collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"received_by",l:"Received by",o:["Akolite",...WAGE_TEAMS]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
   payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to (supplier's exact name, for its ledger)",req:1,dl:()=>DB.vendors.map(v=>v.name)},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
   counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
 };
@@ -711,7 +713,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="16 Nov 2026 · multi-item production v5";
+const APP_VERSION="16 Nov 2026 · received-by v6";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -862,7 +864,10 @@ async function saveForm(){
       if(Number(rec.sheets)>Number(data)){M.stockOK=true;$("ferr").textContent=`The records show only ${num(data)} of these pieces at ${rec.factory}. Check the entry, or press Save again to record it anyway.`;btn.disabled=false;btn.textContent="Save";return;}
     }
     if(M.t==="stock_moves")rec.unit=rec.kind==="Finished"?"sq ft":rmUnit(rec.item);
-    await Api.save(M.t,rec);S.modal=null;renderModal();render();
+    if(M.t==="collections"){if(!WAGE_TEAMS.includes(rec.received_by)){rec.received_by=null;if(!M.id)delete rec.received_by;}}
+    await Api.save(M.t,rec);
+    if(M.t==="collections"&&!M.id&&rec.received_by){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:"Wages",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type Wages. "+friendly(e));return;}}
+    S.modal=null;renderModal();render();
   }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
 }
 
