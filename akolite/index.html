@@ -155,7 +155,7 @@ const groupLabel=g=>{const x=PRICE_GROUPS.find(p=>p[0]===g);return x?x[1]+" ("+g
 /* Money received by one of these people counts as wages paid to them. */
 const WAGE_TEAMS=["Hero","Akash Malik"];
 /* Dropdowns whose value drives stock, prices or reports keep a fixed list; every other dropdown also offers "Others". */
-const NO_OTHERS=["status","stage","factory","qc","quality","move","kind","basis","type","state","item","grade","density","price_group","unit","ak_role"];
+const NO_OTHERS=["factory","move","kind","basis","state","item","price_group","unit","ak_role"];
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
@@ -708,11 +708,11 @@ function quoteModal(M){
   return `<div class="wrap" data-a="closebg"><form class="modal wide" id="quoteForm" data-stop="1" role="dialog" aria-modal="true" aria-label="Quotation"><h2>${q.id?"Edit":"New"} quotation · ${esc(q.no)}</h2>
   <div class="form">${inp("date","Date","date","required")}<label>Party *<input id="q-party" list="q-parties" value="${esc(q.party||"")}" required autocomplete="off"><datalist id="q-parties">${[...new Set([...DB.customers.map(c=>c.name),...DB.orders.map(o=>o.party)])].filter(Boolean).map(n=>`<option value="${esc(n)}">`).join("")}</datalist></label>
   ${inp("address","Bill address")}${inp("gst","Party GST number")}${inp("contact","Contact and phone")}<label>Price group<select id="q-group">${["",...PRICE_GROUPS.map(p=>p[0])].map(g=>`<option value="${g}" ${String(q.price_group||"")===g?"selected":""}>${g?groupLabel(g):"From customer type"}</option>`).join("")}</select></label>
-  ${inp("gst_pct","GST %","number",'step="any" min="0"')}${inp("validity","Valid for")}<label>Status<select id="q-status">${["Draft","Sent","Accepted","Lost"].map(x=>`<option ${q.status===x?"selected":""}>${x}</option>`).join("")}</select></label></div>
+  ${inp("gst_pct","GST %","number",'step="any" min="0"')}${inp("validity","Valid for")}<label>Status<select id="q-status" data-oth="1">${["Draft","Sent","Accepted","Lost"].map(x=>`<option ${q.status===x?"selected":""}>${x}</option>`).join("")}<option value="__other__" ${q.status&&!["Draft","Sent","Accepted","Lost"].includes(q.status)?"selected":""}>Others (type a new one)</option></select><input id="q-status-o" class="othin" placeholder="Type the status" value="${q.status&&!["Draft","Sent","Accepted","Lost"].includes(q.status)?esc(q.status):""}" ${q.status&&!["Draft","Sent","Accepted","Lost"].includes(q.status)?"":"hidden"}></label></div>
   <div class="scroll"><table><thead><tr><th>Product</th><th>Thickness (mm)</th><th>Density</th><th>Size</th><th class="n">Pieces</th><th class="n">Rate ₹ per piece</th><th class="n">Amount</th><th></th></tr></thead><tbody>${(q.items||[]).map((l,i)=>{const c=qLine(l);return `<tr>
-    <td><select class="qi" data-i="${i}" data-k="product">${Q_PRODUCTS.map(p=>`<option ${l.product===p?"selected":""}>${p}</option>`).join("")}</select></td>
+    <td><select class="qi" data-i="${i}" data-k="product">${Q_PRODUCTS.map(p=>`<option ${l.product===p&&!l.pother?"selected":""}>${p}</option>`).join("")}<option value="__other__" ${l.pother||(l.product&&!Q_PRODUCTS.includes(l.product))?"selected":""}>Others</option></select>${l.pother||(l.product&&!Q_PRODUCTS.includes(l.product))?`<input class="qi" data-i="${i}" data-k="product_o" placeholder="Type the product" value="${esc(l.product&&!Q_PRODUCTS.includes(l.product)?l.product:"")}" style="width:130px">`:""}</td>
     <td><input class="qi" data-i="${i}" data-k="thick" type="number" step="any" min="0" value="${esc(l.thick??"")}" style="width:70px"></td>
-    <td><select class="qi" data-i="${i}" data-k="density">${["","0.95","1.0","1.1","1.2"].map(d=>`<option ${String(l.density||"")===d?"selected":""}>${d}</option>`).join("")}</select></td>
+    <td><select class="qi" data-i="${i}" data-k="density">${["","0.95","1.0","1.1","1.2"].map(d=>`<option ${String(l.density||"")===d&&!l.dother?"selected":""}>${d}</option>`).join("")}<option value="__other__" ${l.dother||(l.density&&!["0.95","1.0","1.1","1.2"].includes(String(l.density)))?"selected":""}>Others</option></select>${l.dother||(l.density&&!["0.95","1.0","1.1","1.2"].includes(String(l.density)))?`<input class="qi" data-i="${i}" data-k="density_o" placeholder="Type the density" value="${esc(l.density&&!["0.95","1.0","1.1","1.2"].includes(String(l.density))?l.density:"")}" style="width:90px">`:""}</td>
     <td><input class="qi" data-i="${i}" data-k="size" value="${esc(l.size||"")}" placeholder="900x550 or 8x4" style="width:110px"></td>
     <td class="n"><input class="qi" data-i="${i}" data-k="pieces" type="number" step="any" min="0" value="${esc(l.pieces??"")}" style="width:80px"></td>
     <td class="n"><input class="qi" data-i="${i}" data-k="prate" type="number" step="any" min="0" value="${esc(qPiece(l)??"")}" style="width:80px"></td>
@@ -725,12 +725,12 @@ function quoteModal(M){
 }
 function readQuote(){
   const q=S.modal.q,v=id=>$("q-"+id)?$("q-"+id).value.trim():"";
-  Object.assign(q,{date:v("date"),party:v("party"),address:v("address"),gst:v("gst"),contact:v("contact"),price_group:v("group")||null,gst_pct:v("gst_pct")===""?0:Number(v("gst_pct")),validity:v("validity"),status:v("status")||"Draft",notes:$("q-notes")?$("q-notes").value:q.notes});
-  document.querySelectorAll("#quoteForm .qi").forEach(e=>{const l=q.items[e.dataset.i],k=e.dataset.k;l[k]=["thick","pieces","prate"].includes(k)?(e.value===""?null:Number(e.value)):e.value;});
+  Object.assign(q,{date:v("date"),party:v("party"),address:v("address"),gst:v("gst"),contact:v("contact"),price_group:v("group")||null,gst_pct:v("gst_pct")===""?0:Number(v("gst_pct")),validity:v("validity"),status:($("q-status")&&$("q-status").value==="__other__"?v("status-o"):v("status"))||"Draft",notes:$("q-notes")?$("q-notes").value:q.notes});
+  document.querySelectorAll("#quoteForm .qi").forEach(e=>{const l=q.items[e.dataset.i],k=e.dataset.k;if(k==="product_o"||k==="density_o")return;if((k==="product"||k==="density")&&e.value==="__other__"){const o=document.querySelector(`#quoteForm .qi[data-i="${e.dataset.i}"][data-k="${k}_o"]`);l[k==="product"?"pother":"dother"]=true;l[k]=o?o.value.trim():"";return;}if(k==="product")l.pother=false;if(k==="density")l.dother=false;l[k]=["thick","pieces","prate"].includes(k)?(e.value===""?null:Number(e.value)):e.value;});
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="16 Nov 2026 · sales-tab v10";
+const APP_VERSION="16 Nov 2026 · others-everywhere v11";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -803,7 +803,7 @@ async function saveQuotePDF(q){
 const isMultiProd=()=>!!S.modal&&S.modal.t==="production"&&!S.modal.id;
 function prodRowHTML(){
   const sel=(k,o)=>`<select data-k="${k}">${o.map(x=>`<option>${esc(x)}</option>`).join("")}</select>`,num_=(k,ph)=>`<input data-k="${k}" type="number" step="any" min="0" inputmode="decimal" placeholder="${ph||""}" autocomplete="off">`;
-  return `<div class="prow"><div class="form"><label>Grade${sel("grade",GRADES)}</label><label>Thickness (mm) *${num_("thick")}</label><label><span class="szl">Size in mm (900x550) *</span><input data-k="size" placeholder="900x550" autocomplete="off"></label><label>Good pieces * <span class="sub">(number of sheets or pallets)</span>${num_("sheets")}</label><label>Second-grade pieces${num_("second")}</label><label>Rejected pieces${num_("rejected")}</label></div><button type="button" class="btn sm dang" data-a="delrow">Remove this item</button></div>`;
+  return `<div class="prow"><div class="form"><label>Grade<select data-k="grade">${GRADES.map(x=>`<option>${esc(x)}</option>`).join("")}<option value="__other__">Others (type a new one)</option></select><input data-k="grade_o" class="othin" placeholder="Type the new grade or product" hidden autocomplete="off"></label><label>Thickness (mm) *${num_("thick")}</label><label><span class="szl">Size in mm (900x550) *</span><input data-k="size" placeholder="900x550" autocomplete="off"></label><label>Good pieces * <span class="sub">(number of sheets or pallets)</span>${num_("sheets")}</label><label>Second-grade pieces${num_("second")}</label><label>Rejected pieces${num_("rejected")}</label></div><button type="button" class="btn sm dang" data-a="delrow">Remove this item</button></div>`;
 }
 function prodFormHTML(){
   const f=k=>formFields("production").find(x=>x.k===k),one=k=>{const x=f(k);if(!x)return"";const id="f-"+k;return `<label>${esc(x.l)}${x.req?" *":""}${x.o?`<select id="${id}">${x.o.map(o=>`<option>${esc(o)}</option>`).join("")}</select>`:`<input id="${id}" type="${x.t||"text"}" ${x.t==="number"?'step="any" min="0" inputmode="decimal"':""} value="${x.t==="date"?today():""}" ${x.req?"required":""} autocomplete="off">`}</label>`;};
@@ -841,14 +841,14 @@ function liveCalc(){
   const fr=S.modal.t==="dispatch"&&$("f-grade")?floorRate($("f-grade").value,r.thick):null;
   c.textContent=(fr!=null?`Full-truckload list rate: ₹${num(fr)} per sq ft. `:"")+(Number(r.sheets)?`${num(r.sheets)} pieces × ${num(area(r.size))} sq ft = ${num(sqft(r))} sq ft · × ${r.thick} mm = ${num(sqmm(r))} sq ft × mm`:"");
 }
-function readRow(el){const o={};el.querySelectorAll("[data-k]").forEach(i=>{const v=i.value.trim();o[i.dataset.k]=i.type==="number"?(v===""?null:Number(v)):v;});return o;}
+function readRow(el){const o={};el.querySelectorAll("[data-k]").forEach(i=>{const v=i.value.trim();o[i.dataset.k]=i.type==="number"?(v===""?null:Number(v)):v;});if(o.grade==="__other__")o.grade=o.grade_o||"";delete o.grade_o;return o;}
 async function saveProduction(){
   const M=S.modal,btn=document.querySelector("#recForm .btn.pri"),err=m=>{$("ferr").textContent=m;},g=k=>$("f-"+k).value.trim(),n=k=>g(k)===""?null:Number(g(k));
   const base={date:g("date"),factory:g("factory"),stage:g("stage")},use={core_used:n("core_used"),face_used:n("face_used"),resin_kg:n("resin_kg")};
   if(!base.date)return err("Choose the date.");
   const rows=[...document.querySelectorAll(".prow")].map(readRow);
   for(let i=0;i<rows.length;i++){const r=rows[i],w=rows.length>1?`Item ${i+1}: `:"";
-    if(!r.thick)return err(w+"Enter the thickness.");if(!r.size)return err(w+"Enter the size.");if(!(Number(r.sheets)>0))return err(w+"Enter the number of good pieces.");}
+    if(!r.grade)return err(w+"Type the grade or product name for Others.");if(!r.thick)return err(w+"Enter the thickness.");if(!r.size)return err(w+"Enter the size.");if(!(Number(r.sheets)>0))return err(w+"Enter the number of good pieces.");}
   if(!M.dateOK&&base.date>today()){M.dateOK=true;return err(`The date is in the future (${fmtD(base.date)} ${String(base.date).slice(0,4)}). Press Save again if that's right.`);}
   if(!M.dupOK){const dup=rows.find(r=>DB.production.find(x=>x.date===base.date&&x.grade===r.grade&&x.size===r.size&&Number(x.thick)===Number(r.thick)&&Number(x.sheets)===Number(r.sheets)&&x.stage===base.stage));
     if(dup){M.dupOK=true;return err(`${dup.grade} ${dup.thick} mm, ${dup.size}, ${num(dup.sheets)} pieces looks like an entry that's already saved. Press Save again only if it really is a second one.`);}}
@@ -942,7 +942,7 @@ document.addEventListener("click",e=>{
   else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
 });
 document.addEventListener("change",e=>{if(e.target.id==="salesMonth"&&e.target.value){S.salesMonth=e.target.value;render();}if(e.target.id==="f-item")timberCalc();if(e.target.dataset&&e.target.dataset.oth){const o=e.target.value==="__other__",i=$(e.target.id+"-o"),x=$(e.target.id+"-x");if(i){i.hidden=!o;if(o)i.focus();}if(x)x.hidden=!o;}});
-document.addEventListener("change",e=>{const g=e.target.closest&&e.target.matches("[data-k=grade]")&&e.target.closest(".prow");if(!g)return;const pal=isPallet(e.target.value),sz=g.querySelector("[data-k=size]");g.querySelector(".szl").textContent=pal?"Size in mm (900x550) *":"Size in inches (96x48) *";sz.placeholder=pal?"900x550":"96x48";liveCalc();});
+document.addEventListener("change",e=>{const g=e.target.closest&&e.target.matches("[data-k=grade]")&&e.target.closest(".prow");if(!g)return;const oth=e.target.value==="__other__",gi=g.querySelector("[data-k=grade_o]");if(gi){gi.hidden=!oth;if(oth)gi.focus();}const pal=isPallet(e.target.value),sz=g.querySelector("[data-k=size]");g.querySelector(".szl").textContent=pal?"Size in mm (900x550) *":"Size in inches (96x48) *";sz.placeholder=pal?"900x550":"96x48";liveCalc();});
 const rateLabel=item=>{const u=({tonnes:"tonne",bundles:"bundle"})[rmUnit(item)]||rmUnit(item)||"unit";return "Rate per "+(/veneer/i.test(item)?u+" per mm":u)+" (₹)";};
 function timberCalc(){if(!S.modal||S.modal.t!=="inward"||!$("f-rate_t"))return;const item=$("f-item").value,lab=$("rate-lbl");if(lab)lab.textContent=rateLabel(item);
   const q=Number($("f-qty").value),r=Number($("f-rate_t").value),ven=/veneer/i.test(item),mm=ven?(Number($("f-mm").value)||0):1,c=$("calc");
