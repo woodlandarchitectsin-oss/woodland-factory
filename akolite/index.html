@@ -715,7 +715,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="16 Nov 2026 · others-option v7";
+const APP_VERSION="16 Nov 2026 · received-by-all v8";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -874,7 +874,7 @@ async function saveForm(){
     if(newCust)await Api.save("customers",newCust);
     if(M.t==="collections"){if(!rec.received_by||rec.received_by==="Akolite"){rec.received_by=null;if(!M.id)delete rec.received_by;}}
     await Api.save(M.t,rec);
-    if(M.t==="collections"&&!M.id&&WAGE_TEAMS.includes(rec.received_by)){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:"Wages",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type Wages. "+friendly(e));return;}}
+    if(M.t==="collections"&&!M.id&&rec.received_by){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type "+(WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other")+". "+friendly(e));return;}}
     S.modal=null;renderModal();render();
   }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
 }
