@@ -730,7 +730,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="17 Nov 2026 · period-strip v12";
+const APP_VERSION="17 Nov 2026 · period-today v13";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -813,17 +813,17 @@ function prodFormHTML(){
   <h3 style="margin:14px 0 4px;font-size:15px">Materials used (for the whole report, optional)</h3><div class="form">${["core_used","face_used","resin_kg"].map(one).join("")}</div>`;
 }
 function periodStrip(){
-  const N=S.todayDays||30,T=today(),a=addDays(T,-(N-1)),pa=addDays(T,-(2*N-1)),pb=addDays(T,-N);
+  const N=S.todayDays||30,T=today(),PL=N===1?"today":N+" days",a=addDays(T,-(N-1)),pa=addDays(T,-(2*N-1)),pb=addDays(T,-N);
   const inR=(r,x,y)=>r.date>=x&&r.date<=y,prod=(x,y)=>Api.rows("production").filter(r=>r.stage!=="Opening stock"&&inR(r,x,y)).filter(inF),dis=(x,y)=>Api.rows("dispatch").filter(r=>inR(r,x,y)).filter(inF);
   const sum=(rows,f)=>rows.reduce((t,r)=>t+f(r),0),sales=(x,y)=>sum(dis(x,y),r=>dispatchAmount(r)||0)+sum(DB.party_entries.filter(r=>r.kind==="Sale"&&inR(r,x,y)),r=>Number(r.amount)||0);
-  const chg=(c,p)=>p>0?{t:(c>=p?"+":"")+num((c-p)/p*100)+"% vs previous "+N+" days",hot:c<p}:null;
+  const chg=(c,p)=>p>0?{t:(c>=p?"+":"")+num((c-p)/p*100)+"% vs "+(N===1?"yesterday":"previous "+N+" days"),hot:c<p}:null;
   const tiles=[];
-  if(can("money")){const c=sales(a,T),pv=sales(pa,pb),g=chg(c,pv);tiles.push(tile(inr(c),"Sales, "+N+" days",g&&g.t,g&&g.hot));}
-  if(can("production")){const c=sum(prod(a,T),sqft),pv=sum(prod(pa,pb),sqft),g=chg(c,pv);tiles.push(tile(num(c)+" sq ft","Production, "+N+" days",num(sum(prod(a,T),r=>Number(r.sheets)||0))+" pieces"+(g?" · "+g.t:""),g&&g.hot));}
-  if(can("dispatch")){const d=dis(a,T);tiles.push(tile(num(sum(d,sqft))+" sq ft","Dispatched, "+N+" days",d.length+" dispatches · "+num(sum(d,r=>Number(r.sheets)||0))+" pieces"));}
-  if(can("money")){const c=sum(Api.rows("collections").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0),pd=sum(Api.rows("payments").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0);tiles.push(tile(inr(c),"Collected, "+N+" days"));tiles.push(tile(inr(pd),"Payments made, "+N+" days"));}
+  if(can("money")){const c=sales(a,T),pv=sales(pa,pb),g=chg(c,pv);tiles.push(tile(inr(c),"Sales, "+PL,g&&g.t,g&&g.hot));}
+  if(can("production")){const c=sum(prod(a,T),sqft),pv=sum(prod(pa,pb),sqft),g=chg(c,pv);tiles.push(tile(num(c)+" sq ft","Production, "+PL,num(sum(prod(a,T),r=>Number(r.sheets)||0))+" pieces"+(g?" · "+g.t:""),g&&g.hot));}
+  if(can("dispatch")){const d=dis(a,T);tiles.push(tile(num(sum(d,sqft))+" sq ft","Dispatched, "+PL,d.length+" dispatches · "+num(sum(d,r=>Number(r.sheets)||0))+" pieces"));}
+  if(can("money")){const c=sum(Api.rows("collections").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0),pd=sum(Api.rows("payments").filter(r=>inR(r,a,T)),r=>Number(r.amount)||0);tiles.push(tile(inr(c),"Collected, "+PL));tiles.push(tile(inr(pd),"Payments made, "+PL));}
   if(!tiles.length)return "";
-  return `<div class="row" style="gap:6px;margin:4px 0 10px;flex-wrap:wrap" role="group" aria-label="Period">${[7,30,60].map(d=>`<button class="btn ${N===d?"pri":""}" data-a="period" data-d="${d}" aria-pressed="${N===d}">${d} days</button>`).join("")}<span class="sub" style="align-self:center">${fmtD(a)} to ${fmtD(T)}</span></div><div class="tiles">${tiles.join("")}</div>`;
+  return `<div class="row" style="gap:6px;margin:4px 0 10px;flex-wrap:wrap" role="group" aria-label="Period">${[1,7,30,60].map(d=>`<button class="btn ${N===d?"pri":""}" data-a="period" data-d="${d}" aria-pressed="${N===d}">${d===1?"Today":d+" days"}</button>`).join("")}<span class="sub" style="align-self:center">${N===1?fmtD(T):fmtD(a)+" to "+fmtD(T)}</span></div><div class="tiles">${tiles.join("")}</div>`;
 }
 function renderModal(){
   const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
