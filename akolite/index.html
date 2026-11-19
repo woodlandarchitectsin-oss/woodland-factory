@@ -79,7 +79,7 @@ tr.tot td{font-weight:600;background:var(--surface2)}
 .modal{background:var(--surface);border-radius:6px;width:100%;max-width:600px;padding:18px}
 .modal.wide{max-width:860px}
 .modal h2{font-size:24px;font-weight:600;margin-bottom:12px}
-.othin{margin-top:6px}.othx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.prow{border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--surface)}.prow .btn{margin-top:10px}
+.acctgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:10px}.acctbtn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:12px;height:auto}.acctbtn small{font-weight:400;color:var(--muted)}.othin{margin-top:6px}.othx{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.prow{border:1px solid var(--line);border-radius:5px;padding:12px;margin-bottom:10px;background:var(--surface)}.prow .btn{margin-top:10px}
 .form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .form label{display:flex;flex-direction:column;gap:3px;font-size:13px;font-weight:500;color:var(--muted);min-width:0}
 .form input,.form select{width:100%;padding:8px 10px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:5px;font-size:15px}
@@ -159,7 +159,7 @@ const NO_OTHERS=["factory","move","kind","basis","state","item","price_group","u
 const PAYCATS=["Raw material","Wages","Power","Transport","Other"];
 const STAGES=["Peeling","Drying","Gluing","Pressing","Finishing","Grading"];
 const ROLE_LABEL={admin:"Admin",production:"Production only",dispatch:"Dispatch only",marketer:"Marketer"};
-const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["quotes","Quotations"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["sales","Sales"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["ledgers","Party ledgers"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"],["myfollowups","My follow-ups"]],dispatch:[["dispatch","Daily dispatch"]]};
+const NAV={admin:[["today","Today"],["finished","Finished stock"],["raw","Raw materials"],["orders","Leads & orders"],["quotes","Quotations"],["prices","Price list"],["followups","Follow-ups"],["marketers","Marketers"],["makers","Machine makers"],["machines","Machine models & pallets"],["pallets","Pallet sizes"],["remarks","Remarks"],["reports","Production report"],["production","Production"],["inward","Inward"],["rates","Purchase rates"],["dispatch","Dispatch"],["sales","Sales"],["accounts","Accounts"],["balancesheet","Balance sheet"],["profitloss","Profit and loss"],["cashbook","Cash and bank book"],["acctentries","Other entries"],["stockvalue","Stock value"],["acctsetup","Accounts setup"],["customers","Customers"],["vendors","Vendors"],["payables","Pending payments"],["money","Collections & payments"],["ledgers","Party ledgers"],["documents","Upload documents"],["check","Stock check"],["weekly","Weekly report"],["history","Who entered what"],["settings","Settings"]],production:[["production","Daily production"]],marketer:[["myleads","My leads"],["myfollowups","My follow-ups"]],dispatch:[["dispatch","Daily dispatch"]]};
 
 
 const today=()=>new Date().toLocaleDateString("en-CA");
@@ -174,7 +174,7 @@ const sqft=r=>(Number(r.sheets)||0)*area(r.size);
 const sqmm=r=>sqft(r)*(Number(r.thick)||0);
 const $=id=>document.getElementById(id);
 
-const EMPTY=()=>({quotations:[],stock_moves:[],party_entries:[],production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6,rate_card:null}});
+const EMPTY=()=>({acct_entries:[],quotations:[],stock_moves:[],party_entries:[],production:[],dispatch:[],inward:[],customers:[],collections:[],payments:[],counts:[],vendors:[],payables:[],factory_reports:[],orders:[],marketers:[],makers:[],machines:[],pallet_sizes:[],followups:[],remarks:[],log:[],settings:{veneer_factor:1,resin_per_k:1.6,rate_card:null}});
 let DB=EMPTY();
 const CFG=window.WOODLAND_CONFIG||{};
 const sb0=CFG.url&&CFG.anonKey?supabase.createClient(CFG.url,CFG.anonKey):null;
@@ -186,8 +186,8 @@ const isAdmin=()=>S.user&&S.user.role==="admin";
 // staff logins see only their areas; admins see everything
 const can=a=>!!S.user&&(S.user.role==="admin"||(S.user.role==="staff"&&(S.user.areas||[]).includes(a)));
 const isEntry=()=>!!S.user&&["production","dispatch"].includes(S.user.role);
-const SCREEN_AREA={today:["production","inward","dispatch","stock","stock_raw","leads","customers","money"],finished:["stock"],raw:["stock","stock_raw"],orders:["leads"],quotes:["leads"],prices:["leads","money"],followups:["leads"],marketers:["leads"],makers:["leads"],machines:["leads"],pallets:["leads","production"],remarks:["leads"],reports:["production"],production:["production"],inward:["inward"],rates:["money"],dispatch:["dispatch"],sales:["money"],customers:["customers"],vendors:["money"],payables:["money"],money:["money"],ledgers:["money"],documents:["money"],check:["stock"],weekly:["production","money"],history:["history"],settings:[]};
-const NAV_GROUPS=[["Daily work",["today","production","inward","dispatch","reports","weekly"]],["Stock",["finished","raw","check"]],["Sales",["sales","orders","quotes","customers","followups","prices"]],["Accounts",["ledgers","payables","money","rates","vendors"]],["More",["marketers","makers","machines","pallets","remarks","documents","history","settings"]]];
+const SCREEN_AREA={today:["production","inward","dispatch","stock","stock_raw","leads","customers","money"],finished:["stock"],raw:["stock","stock_raw"],orders:["leads"],quotes:["leads"],prices:["leads","money"],followups:["leads"],marketers:["leads"],makers:["leads"],machines:["leads"],pallets:["leads","production"],remarks:["leads"],reports:["production"],production:["production"],inward:["inward"],rates:["money"],dispatch:["dispatch"],sales:["money"],accounts:["money"],balancesheet:["money"],profitloss:["money"],cashbook:["money"],acctentries:["money"],stockvalue:["money"],acctsetup:["money"],customers:["customers"],vendors:["money"],payables:["money"],money:["money"],ledgers:["money"],documents:["money"],check:["stock"],weekly:["production","money"],history:["history"],settings:[]};
+const NAV_GROUPS=[["Daily work",["today","production","inward","dispatch","reports","weekly"]],["Stock",["finished","raw","check"]],["Sales",["sales","orders","quotes","customers","followups","prices"]],["Accounts",["accounts","balancesheet","profitloss","cashbook","acctentries","stockvalue","acctsetup","ledgers","payables","money","rates","vendors"]],["More",["marketers","makers","machines","pallets","remarks","documents","history","settings"]]];
 function navHTML(nav,od){
   const btn=([k,l])=>`<button data-a="view" data-v="${k}" class="${S.view===k||(S.view==="ledger"&&k==="ledgers")?"on":""}"><span>${esc(l)}</span>${k==="today"&&od?`<i>${od}</i>`:""}</button>`;
   if(nav.length<=7)return nav.map(btn).join("");
@@ -224,7 +224,7 @@ async function loadData(){
     const [pe,sm,leads,ps,reps0,rates,ven,pyb,rc]=await Promise.all([has("money")?fetchAll("party_entries"):none(),has("stock","stock_raw")?fetchAll("stock_moves"):none(),has("leads")?Promise.all(LEAD.map(t=>fetchAll(t))):Promise.resolve(LEAD.map(()=>[])),
       has("leads","production")?fetchAll("pallet_sizes"):none(),has("production")?fetchAll("factory_reports",null,REP):none(),has("production")&&has("money")?rpcRows("report_rates"):none(),
       has("money")?fetchAll("vendors"):none(),has("money")?fetchAll("payables"):none(),has("money","leads")?card():Promise.resolve(null)]);
-    d.party_entries=pe.map(stampBy);d.stock_moves=sm.map(stampBy);LEAD.forEach((t,i)=>{d[t]=leads[i].map(stampBy);});d.pallet_sizes=ps.map(stampBy);
+    d.party_entries=pe.map(stampBy);d.acct_entries=has("money")?await fetchAll("acct_entries").then(r=>r.map(stampBy)).catch(()=>[]):[];d.stock_moves=sm.map(stampBy);LEAD.forEach((t,i)=>{d[t]=leads[i].map(stampBy);});d.pallet_sizes=ps.map(stampBy);
     const rr={};rates.forEach(x=>{rr[x.id]=x;});d.factory_reports=reps0.map(r=>stampBy({...r,...(rr[r.id]||{}),id:r.id}));d.vendors=ven.map(stampBy);d.payables=pyb.map(stampBy);
     if(set[0])d.settings=set[0];
     if(rc!=null)d.settings={...d.settings,rate_card:rc};
@@ -444,7 +444,7 @@ today(){
   const lateO=DB.orders.filter(orderLate),repO=DB.orders.filter(repeatDue),mo=T.slice(0,7),openDue=can("stock")&&!DB.counts.some(r=>String(r.date).slice(0,7)===mo)&&!DB.production.some(r=>r.stage==="Opening stock"&&String(r.date).slice(0,7)===mo)&&!DB.stock_moves.some(r=>r.move==="Opening"&&String(r.date).slice(0,7)===mo);
   const rec=receivables().filter(x=>x.overdue>0).sort((a,b)=>b.overdue-a.overdue),up=unpriced();
   const low=stockDays().filter(x=>x.days!=null&&x.days<7&&inF(x)),wk=addDays(T,-6),failed=[...DB.inward.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Inward",what:r.item+(r.supplier?" from "+r.supplier:"")})),...DB.dispatch.filter(r=>r.qc==="Failed"&&r.date>=wk).map(r=>({...r,kind:"Dispatch",what:[r.customer,r.grade,r.thick+" mm"].filter(Boolean).join(" · ")}))];
-  const QUICK=[["production","production","Production"],["inward","inward","Inward"],["dispatch","dispatch","Dispatch"],["stock|stock_raw","raw","Stock entries"],["money","sales","Sales"],["money","money","Payments received / made"],["money","payables","Supplier bills"],["leads","quotes","Quotations"],["leads","orders","Leads and orders"],["leads","followups","Follow-ups"]].filter(q=>q[0].split("|").some(can));
+  const QUICK=[["production","production","Production"],["inward","inward","Inward"],["dispatch","dispatch","Dispatch"],["stock|stock_raw","raw","Stock entries"],["money","sales","Sales"],["money","accounts","Accounts"],["money","money","Payments received / made"],["money","payables","Supplier bills"],["leads","quotes","Quotations"],["leads","orders","Leads and orders"],["leads","followups","Follow-ups"]].filter(q=>q[0].split("|").some(can));
   const quick=QUICK.length?`<div class="quick">${QUICK.map(([,v,l])=>`<button class="btn pri" data-a="view" data-v="${v}">${esc(l)}</button>`).join("")}</div>`:"";
   return head("Today",new Date().toLocaleDateString("en-GB",{weekday:"long",day:"2-digit",month:"short",year:"numeric"}),factorySwitch())+quick+periodStrip()+
   (openDue?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">This month's opening stock hasn't been entered. It's due on the 1st.</div>`:"")+(can("leads")&&(lateO.length||repO.length)?`<div class="tiles">${tile(lateO.length,"Late orders",null,lateO.length>0)}${tile(repO.length,"Repeat orders due")}</div>`:"")+(low.length?panel("Raw material running low · "+low.length,tbl(["Factory","Material","In stock#","Used per day#","Days left#"],low.map(x=>`<tr><td>${esc(x.factory)}</td><td>${esc(x.item)}</td><td class="n">${num(x.balance)} ${esc(x.unit)}</td><td class="n">${num(x.perDay)}</td><td class="n"><span class="pill crit">${x.days<=0?"Out":num(x.days)}</span></td></tr>`)),"alert"):"")+(failed.length?panel("Failed quality checks, last 7 days · "+failed.length,tbl(["Date","In or out","Details","Note"],failed.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${r.kind}</td><td>${esc(r.what)}</td><td>${esc(r.qc_note)}</td></tr>`)),"alert"):"")+(dueBackup?`<div class="note" role="status" style="background:var(--warn-soft);color:var(--warn);border-radius:5px;margin-bottom:12px">A backup is due. <button class="btn sm" data-a="backup">Download backup</button></div>`:"")+`<div class="tiles">${tile(num(p.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces produced",num(p.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${tile(num(inw.filter(r=>/veneer/i.test(r.item)).reduce((a,r)=>a+Number(r.qty)*(Number(r.mm)||1),0)),"Inward veneer","sq ft at 1 mm")}${tile(num(dis.reduce((a,r)=>a+Number(r.sheets),0)),"Pieces dispatched",num(dis.reduce((a,r)=>a+sqft(r),0))+" sq ft")}${can("money")?tile(inr(col),"Collections today")+tile(inr(pay),"Payments made today"):""}</div>`+
@@ -700,7 +700,8 @@ const FORMS={
   stock_moves:{one:"stock entry",f:()=>{const k=(S.modal&&S.modal.k)||(S.modal&&S.modal.id&&(DB.stock_moves.find(r=>r.id===S.modal.id)||{}).kind)||"Finished";return [{k:"date",l:"Date",t:"date",req:1},{k:"kind",l:"Stock",o:[k]},{k:"item",l:k==="Finished"?"Product":"Material",o:k==="Finished"?FG_ITEMS:RM_ITEMS.map(x=>x[0]),req:1},{k:"move",l:"Entry",o:MOVES},{k:"qty",l:k==="Finished"?"Quantity (sq ft)":"Quantity (in the material's unit)",t:"number",req:1},{k:"remarks",l:"Remarks"}];}},
   party_entries:{one:"sale or opening balance",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames(),req:1},{k:"kind",l:"Entry",o:["Sale","Opening balance"],def:"Sale"},{k:"part",l:"Bill or cash amount",o:["","Bill","Cash"]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"invoice_no",l:"Invoice no."},{k:"invoice_file",l:"Invoice copy (PDF or photo, from your phone or WhatsApp)",t:"file",ui:1},{k:"remarks",l:"Remarks"}]},
   collections:{one:"collection",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"customer",l:"Customer",o:custNames()},{k:"received_by",l:"Received by",o:["Akolite",...WAGE_TEAMS]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"mode",l:"Mode",o:["Bank","Cheque","Cash","UPI"]}]},
-  payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to (supplier's exact name, for its ledger)",req:1,dl:()=>DB.vendors.map(v=>v.name)},{k:"category",l:"Type",o:PAYCATS},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
+  payments:{one:"payment",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"payee",l:"Paid to (supplier's exact name, for its ledger)",req:1,dl:()=>DB.vendors.map(v=>v.name)},{k:"category",l:"Type",o:PAYCATS},{k:"mode",l:"Paid from",o:["Bank","Cash"]},{k:"amount",l:"Amount (₹)",t:"number",req:1}]},
+  acct_entries:{one:"accounts entry",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"kind",l:"Entry",o:ACCT_FORM_KINDS},{k:"head",l:"What for (expense head, asset, lender, or Cash / Bank / Fixed assets / Capital / Loans / Other assets / Other liabilities for an opening balance; for a transfer: Cash to Bank or Bank to Cash)",dl:()=>["Wages","Power","Transport","Rent","Repairs","Office","Insurance","Interest","Bank charges","Taxes","Cash to Bank","Bank to Cash","Cash","Bank","Fixed assets","Capital","Loans","Other assets","Other liabilities"]},{k:"mode",l:"Cash or Bank (not needed for opening balances or transfers)",o:["Bank","Cash"]},{k:"amount",l:"Amount (₹)",t:"number",req:1},{k:"party",l:"Party (optional)"},{k:"remarks",l:"Remarks"}]},
   counts:{one:"godown count",f:()=>[{k:"date",l:"Date",t:"date",req:1},{k:"factory",l:"Factory",o:FACTORIES},{k:"item",l:"Material",o:RAW},{k:"qty",l:"Counted (sq ft at 1 mm, kg for resin)",t:"number",req:1}]}
 };
 const formFields=t=>FORMS[t].f().filter(f=>(!f.admin||can("money"))&&(!f.money||can("money")));
@@ -731,7 +732,7 @@ function readQuote(){
   return q;
 }
 const LOGO=new URL("akolite-logo.png",location.href).href,APPURL=location.href.split("?")[0];
-const APP_VERSION="18 Nov 2026 · invoices-v14b";
+const APP_VERSION="19 Nov 2026 · accounts-v15";
 const qMigrate=q=>{const m={...q};const n=String(m.notes||"");if(!n.trim()||/^Rates are per sq ft, ex-works/.test(n)||/Delivery: 21 working days/.test(n))m.notes=Q_TERMS;if(m.validity==="15 days")m.validity="7 days";return m;};
 const SIGNER="Ahamed Saleem";
 const BANK={ac:"64169131344",ifsc:"SBIN0040666",branch:"Kadri Shivabagh"},CLOSING=["Should you have any questions or require further clarification, please do not hesitate to contact us. We are eager to work with you and believe that our expertise will add significant value to your project.","Thank you for considering our proposal. We look forward to the possibility of working together."];
@@ -830,13 +831,148 @@ function periodStrip(){
 const hasPicker=()=>"contacts" in navigator&&"ContactsManager" in window;
 const contactBtn=id=>hasPicker()?`<button type="button" class="btn sm" data-a="pickcontact" data-for="${id}" style="margin-top:6px">Pick number from contacts</button>`:`<label class="btn sm" style="margin-top:6px;display:inline-block;cursor:pointer">Number from a contact card<input type="file" accept=".vcf,text/vcard,text/x-vcard,text/directory" data-vcf="${id}" style="display:none"></label><div class="sub">Contacts app → open the contact → Share Contact → Save to Files, then choose it here. Only the number is taken, not the name. Or paste: the box keeps only the number.</div>`;
 const cleanNumber=t=>{const m=String(t||"").match(/\+?\d[\d\s().-]{6,}\d/g);return m?m.map(x=>x.replace(/[^\d+]/g,"")):[];};
+/* ---- Accounts: books, balance sheet, profit and loss ---- */
+const ACCT_FORM_KINDS=["Expense","Other income","Capital introduced","Drawings","Loan taken","Loan repaid","Fixed asset purchase","Transfer","Opening balance"];
+const acctRows=()=>DB.acct_entries||[];
+const acctStart=()=>{const s=acctRows().filter(r=>r.kind==="Books start").sort((a,b)=>b.date.localeCompare(a.date))[0];if(s)return s.date;const t=today(),y=Number(t.slice(0,4)),m=Number(t.slice(5,7));return (m>=4?y:y-1)+"-04-01";};
+const acctStartSet=()=>acctRows().some(r=>r.kind==="Books start");
+const isCashMode=m=>String(m||"").toLowerCase()==="cash";
+const prodOf=item=>String(item).replace(/^\d+(\.\d+)?\s*mm\s*/i,"");
+function stockRates(asOn){const o={};acctRows().filter(r=>r.kind==="Stock rate"&&r.date<=asOn).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{o[r.head]=Number(r.amount)||0;});return o;}
+function rawRates(asOn){const o={};DB.inward.filter(r=>r.date<=asOn&&Number(r.amount)>0&&Number(r.qty)>0).sort((a,b)=>a.date.localeCompare(b.date)).forEach(r=>{o[INWARD_RM[r.item]||r.item]=Number(r.amount)/Number(r.qty);});return o;}
+function stockValue(asOn){
+  const fr=stockRates(asOn),rr=rawRates(asOn),warn=[],rows=[];let fin=0,raw=0;
+  stockBook("Finished",asOn,asOn).forEach(r=>{if(r.close<0)warn.push(r.item+" is below zero in stock, counted as nil.");const q=Math.max(r.close,0);if(!q)return;const rate=fr[prodOf(r.item)];if(rate==null){warn.push("No stock rate for "+prodOf(r.item)+", so "+num(q)+" sq ft of "+r.item+" is valued at nil.");rows.push({item:r.item,q,unit:"sq ft",rate:null,v:0,kind:"Finished"});return;}const v=q*rate;fin+=v;rows.push({item:r.item,q,unit:"sq ft",rate,v,kind:"Finished"});});
+  stockBook("Raw",asOn,asOn).forEach(r=>{const q=Math.max(r.close,0);if(!q)return;const rate=rr[r.item];if(rate==null){warn.push("No purchase rate yet for "+r.item+", so it is valued at nil.");rows.push({item:r.item,q,unit:r.unit,rate:null,v:0,kind:"Raw"});return;}const v=q*rate;raw+=v;rows.push({item:r.item,q,unit:r.unit,rate,v,kind:"Raw"});});
+  return {fin,raw,total:fin+raw,warn,rows};
+}
+function cashBank(asOn){
+  const st=acctStart(),b={Cash:0,Bank:0};let unset=0;
+  acctRows().filter(r=>r.kind==="Opening balance"&&r.date<=asOn&&(r.head==="Cash"||r.head==="Bank")).forEach(r=>{b[r.head]+=Number(r.amount)||0;});
+  const add=(mode,v)=>{b[isCashMode(mode)?"Cash":"Bank"]+=v;};
+  DB.collections.filter(r=>r.date>=st&&r.date<=asOn).forEach(r=>add(r.mode,Number(r.amount)||0));
+  DB.payments.filter(r=>r.date>=st&&r.date<=asOn).forEach(r=>{if(!r.mode)unset++;add(r.mode,-(Number(r.amount)||0));});
+  acctRows().filter(r=>r.date>=st&&r.date<=asOn).forEach(r=>{const a=Number(r.amount)||0;
+    if(["Other income","Capital introduced","Loan taken"].includes(r.kind))add(r.mode,a);
+    else if(["Expense","Drawings","Loan repaid","Fixed asset purchase"].includes(r.kind))add(r.mode,-a);
+    else if(r.kind==="Transfer"){if(/^cash/i.test(r.head||"")){b.Cash-=a;b.Bank+=a;}else{b.Bank-=a;b.Cash+=a;}}});
+  return {...b,unset};
+}
+function debtors(asOn){let owe=0,adv=0;DB.customers.forEach(c=>{const bill=DB.dispatch.filter(r=>r.customer===c.name&&r.date<=asOn&&dispatchAmount(r)!=null).reduce((a,r)=>a+dispatchAmount(r),0)+DB.party_entries.filter(r=>r.customer===c.name&&r.date<=asOn).reduce((a,r)=>a+(Number(r.amount)||0),0),got=DB.collections.filter(r=>r.customer===c.name&&r.date<=asOn).reduce((a,r)=>a+(Number(r.amount)||0),0),bal=bill-got;if(bal>0)owe+=bal;else adv-=bal;});return {owe,adv};}
+function creditors(asOn){let owe=0,adv=0;DB.vendors.forEach(v=>{const bill=DB.payables.filter(r=>r.vendor===v.name&&(r.date||"")<=asOn).reduce((a,r)=>a+(Number(r.amount)||0),0),paid=DB.payments.filter(r=>r.payee===v.name&&r.date<=asOn).reduce((a,r)=>a+(Number(r.amount)||0),0),bal=bill-paid;if(bal>0)owe+=bal;else adv-=bal;});return {owe,adv};}
+function balanceSheet(asOn){
+  const st=acctRows(),sum=f=>st.filter(f).reduce((a,r)=>a+(Number(r.amount)||0),0),op=h=>sum(r=>r.kind==="Opening balance"&&r.head===h&&r.date<=asOn),S0=acctStart(),inP=r=>r.date>=S0&&r.date<=asOn;
+  const cb=cashBank(asOn),de=debtors(asOn),cr=creditors(asOn),sv=stockValue(asOn);
+  const fixed=op("Fixed assets")+sum(r=>r.kind==="Fixed asset purchase"&&inP(r)),otherA=op("Other assets"),
+    loans=op("Loans")+sum(r=>r.kind==="Loan taken"&&inP(r))-sum(r=>r.kind==="Loan repaid"&&inP(r)),otherL=op("Other liabilities"),
+    capital=op("Capital")+sum(r=>r.kind==="Capital introduced"&&inP(r))-sum(r=>r.kind==="Drawings"&&inP(r));
+  const assets=[["Fixed assets (at cost)",fixed],["Closing stock · finished goods",sv.fin],["Closing stock · raw materials",sv.raw],["Customers owe Akolite (debtors)",de.owe],["Paid in advance to suppliers",cr.adv],["Bank",cb.Bank],["Cash in hand",cb.Cash],["Other assets",otherA]];
+  const liab=[["Suppliers Akolite owes (creditors)",cr.owe],["Customer advances",de.adv],["Loans",loans],["Other liabilities",otherL]];
+  const tA=assets.reduce((a,x)=>a+x[1],0),tL=liab.reduce((a,x)=>a+x[1],0),reserves=tA-tL-capital;
+  return {assets,liab,capital,reserves,tA,tL,sv,cb,de,cr};
+}
+function profitLoss(from,to){
+  const inR=r=>r.date>=from&&r.date<=to,rows=acctRows().filter(inR);
+  const dis=DB.dispatch.filter(inR).reduce((a,r)=>a+(dispatchAmount(r)||0),0),ent=DB.party_entries.filter(r=>inR(r)&&r.kind==="Sale").reduce((a,r)=>a+(Number(r.amount)||0),0),unpriced=DB.dispatch.filter(r=>inR(r)&&dispatchAmount(r)==null).length;
+  const sales=dis+ent,otherInc=rows.filter(r=>r.kind==="Other income").reduce((a,r)=>a+(Number(r.amount)||0),0),purchases=DB.inward.filter(inR).reduce((a,r)=>a+(Number(r.amount)||0),0);
+  const open=stockValue(addDays(from,-1)),close=stockValue(to),cogs=open.total+purchases-close.total;
+  const exp={};DB.payments.filter(r=>inR(r)&&r.category!=="Raw material").forEach(r=>{const k=r.category||"Other";exp[k]=(exp[k]||0)+(Number(r.amount)||0);});
+  rows.filter(r=>r.kind==="Expense").forEach(r=>{const k=r.head||"Other";exp[k]=(exp[k]||0)+(Number(r.amount)||0);});
+  const tExp=Object.values(exp).reduce((a,x)=>a+x,0),gross=sales-cogs,net=gross+otherInc-tExp;
+  return {sales,dis,ent,otherInc,purchases,open,close,cogs,exp,tExp,gross,net,unpriced};
+}
+const acctCSV=(name,rows)=>{const q=v=>{let t=String(v==null?"":v);if(/^[=+\-@]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';},u=URL.createObjectURL(new Blob(["﻿"+rows.map(r=>r.map(q).join(",")).join("\r\n")],{type:"text/csv"})),a=document.createElement("a");a.href=u;a.download=name+"-"+today()+".csv";document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);};
+async function statementPDF(title,sub,lines){
+  await loadPdfLib();const {PDFDocument,StandardFonts,rgb}=PDFLib,doc=await PDFDocument.create(),f=await doc.embedFont(StandardFonts.Helvetica),fb=await doc.embedFont(StandardFonts.HelveticaBold),W=595,H=842,M=44,ink=rgb(.1,.13,.12);
+  let page=doc.addPage([W,H]),y=H-56;const np=()=>{page=doc.addPage([W,H]);y=H-56;};
+  page.drawText(COMPANY.name,{x:M,y,size:15,font:fb,color:rgb(.15,.4,.28)});y-=20;page.drawText(title,{x:M,y,size:13,font:fb,color:ink});y-=16;page.drawText(sub,{x:M,y,size:9.5,font:f,color:ink});y-=24;
+  lines.forEach(l=>{if(y<60)np();if(l.gap){y-=l.gap;return;}const ft=l.b||l.h?fb:f,sz=l.h?11:10;if(l.h)page.drawRectangle({x:M-6,y:y-5,width:W-2*M+12,height:18,color:rgb(.88,.93,.9)});page.drawText(String(l.t),{x:M+(l.i?14:0),y,size:sz,font:ft,color:ink});if(l.v!=null){const s=String(l.v);page.drawText(s,{x:W-M-ft.widthOfTextAtSize(s,sz),y,size:sz,font:ft,color:ink});}y-=l.h?22:16;});
+  return await doc.save();
+}
+async function saveStatementPDF(name,title,sub,lines){const bytes=await statementPDF(title,sub,lines),file=new File([bytes],name+"-"+today()+".pdf",{type:"application/pdf"});
+  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:name});return;}}catch(e){if(e&&e.name==="AbortError")return;}
+  const u=URL.createObjectURL(file),a=document.createElement("a");a.href=u;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);}
+const plain=n=>(n<0?"-":"")+"Rs "+new Intl.NumberFormat("en-IN",{maximumFractionDigits:0}).format(Math.abs(Math.round(n||0)));
+const acctLink=(v,l,s)=>`<button class="btn acctbtn" data-a="view" data-v="${v}"><b>${esc(l)}</b><small>${esc(s)}</small></button>`;
+const bsLines=b=>[{h:1,t:"Assets"},...b.assets.map(x=>({t:x[0],v:plain(x[1]),i:1})),{b:1,t:"Total assets",v:plain(b.tA)},{gap:8},{h:1,t:"Liabilities and capital"},...b.liab.map(x=>({t:x[0],v:plain(x[1]),i:1})),{t:"Capital (opening + introduced - drawings)",v:plain(b.capital),i:1},{t:"Reserves and surplus (balancing figure)",v:plain(b.reserves),i:1},{b:1,t:"Total liabilities and capital",v:plain(b.tL+b.capital+b.reserves)}];
+const plLines=p=>[{t:"Sales",v:plain(p.sales)},{t:"Opening stock",v:plain(p.open.total),i:1},{t:"Add: purchases of raw material",v:plain(p.purchases),i:1},{t:"Less: closing stock",v:plain(-p.close.total),i:1},{b:1,t:"Cost of goods sold",v:plain(p.cogs)},{b:1,t:"Gross profit",v:plain(p.gross)},{t:"Other income",v:plain(p.otherInc)},{gap:6},{h:1,t:"Expenses"},...Object.entries(p.exp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>({t:k,v:plain(v),i:1})),{b:1,t:"Total expenses",v:plain(p.tExp)},{gap:6},{b:1,t:"Net profit",v:plain(p.net)}];
+Object.assign(V,{
+  accounts(){
+    const t=today(),cb=cashBank(t),de=debtors(t),cr=creditors(t);
+    return head("Accounts","Books, ledgers and statements in one place. Management accounts, separate from Tally.")+
+    `<div class="tiles">${tile(inr(cb.Bank),"Bank")}${tile(inr(cb.Cash),"Cash in hand")}${tile(inr(de.owe),"Customers owe Akolite")}${tile(inr(cr.owe),"Akolite owes suppliers")}</div>`+
+    (acctStartSet()?"":`<div class="note" style="border-color:#c0392b">The books start date is not set, so ${fmtD(acctStart())} ${acctStart().slice(0,4)} is used. Set it, and enter the opening balances, under Setup and opening balances before relying on the balance sheet.</div>`)+
+    panel("Statements",`<div class="acctgrid">${acctLink("balancesheet","Balance sheet","Assets, liabilities and capital as on a date")}${acctLink("profitloss","Profit and loss","Sales, cost of goods and expenses for a period")}${acctLink("cashbook","Cash and bank book","Every receipt and payment with running balance")}</div>`)+
+    panel("Day to day",`<div class="acctgrid">${acctLink("sales","Sales","Dispatches, sale entries and invoice copies")}${acctLink("money","Collections and payments","Money received and paid")}${acctLink("ledgers","Party ledgers","Customers and suppliers")}${acctLink("payables","Supplier bills","Pending payments")}${acctLink("vendors","Vendors","Suppliers")}${acctLink("rates","Purchase rates","Rate history by material")}</div>`)+
+    panel("Books",`<div class="acctgrid">${acctLink("acctentries","Other entries","Expenses, capital, loans, fixed assets, transfers")}${acctLink("stockvalue","Stock value","Closing stock at purchase and stock rates")}${acctLink("acctsetup","Setup and opening balances","Books start date, stock rates, opening balances")}</div>`);
+  },
+  acctentries(){
+    const rows=[...acctRows()].filter(r=>!["Stock rate","Books start"].includes(r.kind)).sort((a,b)=>b.date.localeCompare(a.date));
+    const btn=(l,k)=>`<button class="btn pri" data-a="addacct" data-k="${k}">${l}</button>`;
+    return head("Other entries","Money that is not a sale, collection or supplier payment",btn("Add expense","Expense")+btn("Other income","Other income")+btn("Capital / drawings","Capital introduced")+btn("Loan","Loan taken")+btn("Fixed asset","Fixed asset purchase")+btn("Transfer cash / bank","Transfer"))+
+    panel("Entries · "+rows.length,tbl(["Date","Entry","What for","Mode","Amount#","Party","Remarks","Entered by",""],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.kind)}</td><td>${esc(r.head)}</td><td>${esc(r.mode)}</td><td class="n">${inr(r.amount)}</td><td>${esc(r.party)}</td><td>${esc(r.remarks)}</td><td class="nw">${esc(r.by)}</td><td><button class="btn sm" data-a="edit" data-t="acct_entries" data-id="${r.id}">Edit</button></td></tr>`),"No entries yet."))+
+    `<div class="note">Expenses paid through Payment made (wages, power, transport) are already counted. Use Add expense only for costs not entered there, such as rent, repairs or bank charges. Do not enter the same cost twice.</div>`;
+  },
+  acctsetup(){
+    const st=acctStart(),open=acctRows().filter(r=>r.kind==="Opening balance").sort((a,b)=>String(a.head).localeCompare(String(b.head))),rates=stockRates(today());
+    const prods=[...new Set(stockBook("Finished",today(),today()).map(r=>prodOf(r.item)))];
+    return head("Setup and opening balances","Needed once, so the balance sheet starts from the right figures")+
+    panel("Books start date",`<div class="row" style="gap:8px;padding:10px;flex-wrap:wrap"><label>Books start on <input type="date" id="acct-start" value="${esc(st)}"></label><button class="btn pri" data-a="saveacctstart">Save start date</button><span class="sub">Cash, bank, capital, loans and fixed assets count from this date. Enter the opening balances as they stood on it.</span></div>`)+
+    panel("Opening balances · "+open.length,`<div style="padding:10px"><button class="btn pri" data-a="addacct" data-k="Opening balance">Add opening balance</button> <span class="sub">Cash, Bank, Fixed assets, Capital, Loans, Other assets, Other liabilities. Customers' and suppliers' opening balances go in their own ledgers.</span></div>`+tbl(["As on","Item","Amount#","Remarks",""],open.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.head)}</td><td class="n">${inr(r.amount)}</td><td>${esc(r.remarks)}</td><td><button class="btn sm" data-a="edit" data-t="acct_entries" data-id="${r.id}">Edit</button></td></tr>`),"No opening balances yet."))+
+    panel("Stock rates for finished goods · ₹ per sq ft",`<form id="stockRateForm" style="padding:10px"><div class="sub" style="margin-bottom:8px">The app has no production cost yet, so you set the value of one sq ft of each product. Leave blank to value it at nil. Raw materials use the latest purchase rate.</div><label class="row" style="gap:6px;margin-bottom:8px">Rates as on <input type="date" id="rate-asof" value="${today()}"></label><div class="form">${prods.map(p=>`<label>${esc(p)}<input type="number" step="any" min="0" data-p="${esc(p)}" value="${rates[p]??""}"></label>`).join("")}</div><div style="margin-top:10px"><button class="btn pri">Save stock rates</button></div></form>`);
+  },
+  stockvalue(){
+    const d=S.stockValDate||today(),sv=stockValue(d);
+    return head("Stock value","Closing stock valued at the latest purchase rate (raw) and your stock rate (finished goods)",`<label class="row" style="gap:6px">As on <input type="date" id="svdate" value="${esc(d)}"></label><button class="btn" data-a="view" data-v="acctsetup">Set stock rates</button>`)+
+    `<div class="tiles">${tile(inr(sv.total),"Total stock value")}${tile(inr(sv.fin),"Finished goods")}${tile(inr(sv.raw),"Raw materials")}</div>`+
+    (sv.warn.length?`<div class="note" style="border-color:#c0392b">${sv.warn.map(esc).join("<br>")}</div>`:"")+
+    panel("Stock lines",tbl(["Item","Type","Quantity#","Rate#","Value#"],sv.rows.map(r=>`<tr><td>${esc(r.item)}</td><td>${r.kind}</td><td class="n">${num(r.q)} ${esc(r.unit)}</td><td class="n">${r.rate==null?'<span class="pill warn">No rate</span>':"₹"+num(r.rate)}</td><td class="n">${inr(r.v)}</td></tr>`),"No stock on that date."));
+  },
+  cashbook(){
+    const d=S.cbDate||today(),acc=S.cbAcc||"Bank",st=acctStart(),rows=[];
+    const inAcc=m=>(isCashMode(m)?"Cash":"Bank")===acc;
+    acctRows().filter(r=>r.kind==="Opening balance"&&r.head===acc&&r.date<=d).forEach(r=>rows.push({date:r.date,what:"Opening balance",rec:Number(r.amount)||0,pay:0}));
+    DB.collections.filter(r=>r.date>=st&&r.date<=d&&inAcc(r.mode)).forEach(r=>rows.push({date:r.date,what:"Received from "+r.customer+(r.received_by?" · received by "+r.received_by:""),rec:Number(r.amount)||0,pay:0}));
+    DB.payments.filter(r=>r.date>=st&&r.date<=d&&inAcc(r.mode)).forEach(r=>rows.push({date:r.date,what:"Paid to "+r.payee+(r.category?" · "+r.category:""),rec:0,pay:Number(r.amount)||0}));
+    acctRows().filter(r=>r.date>=st&&r.date<=d&&!["Opening balance","Stock rate","Books start"].includes(r.kind)).forEach(r=>{const a=Number(r.amount)||0,lab=r.kind+(r.head?" · "+r.head:"");
+      if(r.kind==="Transfer"){const toBank=/^cash/i.test(r.head||"");if(acc==="Cash")rows.push({date:r.date,what:lab,rec:toBank?0:a,pay:toBank?a:0});else rows.push({date:r.date,what:lab,rec:toBank?a:0,pay:toBank?0:a});return;}
+      if(!inAcc(r.mode))return;if(["Other income","Capital introduced","Loan taken"].includes(r.kind))rows.push({date:r.date,what:lab,rec:a,pay:0});else rows.push({date:r.date,what:lab,rec:0,pay:a});});
+    rows.sort((a,b)=>a.date.localeCompare(b.date));let bal=0;rows.forEach(r=>{bal+=r.rec-r.pay;r.bal=bal;});
+    const unset=DB.payments.filter(r=>r.date>=st&&r.date<=d&&!r.mode).length;
+    return head("Cash and bank book","From the books start date, "+fmtD(st)+" "+st.slice(0,4),`<button class="btn ${acc==="Bank"?"pri":""}" data-a="cbacc" data-v="Bank">Bank</button><button class="btn ${acc==="Cash"?"pri":""}" data-a="cbacc" data-v="Cash">Cash</button><label class="row" style="gap:6px">Up to <input type="date" id="cbdate" value="${esc(d)}"></label>`)+
+    `<div class="tiles">${tile(inr(bal),acc+" balance")}${tile(inr(rows.reduce((a,r)=>a+r.rec,0)),"Received")}${tile(inr(rows.reduce((a,r)=>a+r.pay,0)),"Paid")}</div>`+
+    (unset?`<div class="note">${unset} payment${unset>1?"s have":" has"} no mode (Cash or Bank) and ${unset>1?"are":"is"} counted in the Bank book. Edit a payment to set its mode.</div>`:"")+
+    panel(acc+" book · "+rows.length,tbl(["Date","Particulars","Received#","Paid#","Balance#"],rows.map(r=>`<tr><td class="nw">${fmtD(r.date)}</td><td>${esc(r.what)}</td><td class="n">${r.rec?inr(r.rec):""}</td><td class="n">${r.pay?inr(r.pay):""}</td><td class="n"><b>${inr(r.bal)}</b></td></tr>`),"No entries yet."));
+  },
+  balancesheet(){
+    const d=S.bsDate||today(),b=balanceSheet(d),pl=profitLoss(acctStart(),d);
+    const side=(rows,tot,tl)=>tbl(["",""],rows.map(x=>`<tr><td>${esc(x[0])}</td><td class="n">${inr(x[1])}</td></tr>`).concat([`<tr class="tot"><td>${tl}</td><td class="n">${inr(tot)}</td></tr>`]));
+    const warn=[...b.sv.warn];if(b.cb.unset)warn.push(b.cb.unset+" payment(s) have no Cash or Bank mode and are counted as Bank.");if(!acctStartSet())warn.push("The books start date is not set; "+fmtD(acctStart())+" "+acctStart().slice(0,4)+" is used.");
+    const cap=[["Capital (opening + introduced − drawings)",b.capital],["Reserves and surplus (balancing figure)",b.reserves]];
+    return head("Balance sheet","As on "+fmtD(d)+" "+d.slice(0,4),`<label class="row" style="gap:6px">As on <input type="date" id="bsdate" value="${esc(d)}"></label><button class="btn" data-a="bsdownload">Excel (CSV)</button><button class="btn pri" data-a="bspdf">Save as PDF</button>`)+
+    `<div class="tiles">${tile(inr(b.tA),"Total assets")}${tile(inr(b.tL),"Total liabilities")}${tile(inr(b.tA-b.tL),"Net worth")}${tile(inr(pl.net),"Profit since books start",fmtD(acctStart()))}</div>`+
+    (warn.length?`<div class="note" style="border-color:#c0392b"><b>Check before relying on this:</b><br>${warn.map(esc).join("<br>")}</div>`:"")+
+    `<div class="grid2">`+panel("Assets",side(b.assets,b.tA,"Total assets"))+panel("Liabilities and capital",side(b.liab.concat(cap),b.tL+b.capital+b.reserves,"Total liabilities and capital"))+`</div>`+
+    `<div class="note"><b>How this is worked out.</b> Cash and bank come from collections, payments and the entries above, from the books start date, plus your opening balances. Debtors are what customers owe after all dispatches, sale entries and collections. Creditors are supplier bills less payments to that supplier. Stock is valued at your stock rates (finished goods) and the latest purchase rate (raw materials). Fixed assets are at cost with no depreciation. Reserves is the balancing figure, so the two sides always agree; it is only right if the opening balances and stock rates are right. This is a management statement, separate from Tally.</div>`;
+  },
+  profitloss(){
+    const from=S.plFrom||acctStart(),to=S.plTo||today(),p=profitLoss(from,to);
+    const row=(a,b,c)=>`<tr${c?` class="${c}"`:""}><td>${esc(a)}</td><td class="n">${inr(b)}</td></tr>`;
+    return head("Profit and loss","From "+fmtD(from)+" "+from.slice(0,4)+" to "+fmtD(to)+" "+to.slice(0,4),`<label class="row" style="gap:6px">From <input type="date" id="plfrom" value="${esc(from)}"></label><label class="row" style="gap:6px">To <input type="date" id="plto" value="${esc(to)}"></label><button class="btn" data-a="pldownload">Excel (CSV)</button><button class="btn pri" data-a="plpdf">Save as PDF</button>`)+
+    `<div class="tiles">${tile(inr(p.sales),"Sales")}${tile(inr(p.gross),"Gross profit")}${tile(inr(p.tExp),"Expenses")}${tile(inr(p.net),"Net profit",null,p.net<0)}</div>`+
+    (p.unpriced?`<div class="note" style="border-color:#c0392b">${p.unpriced} dispatch${p.unpriced>1?"es have":" has"} no rate set and ${p.unpriced>1?"are":"is"} not counted in sales.</div>`:"")+
+    (p.open.warn.length||p.close.warn.length?`<div class="note" style="border-color:#c0392b">${[...new Set([...p.open.warn,...p.close.warn])].map(esc).join("<br>")}</div>`:"")+
+    panel("Statement",tbl(["",""],[row("Sales (dispatches at their rates, plus sale entries)",p.sales),row("Opening stock",p.open.total),row("Add: purchases of raw material (inward amounts)",p.purchases),row("Less: closing stock",-p.close.total),row("Cost of goods sold",p.cogs,"tot"),row("Gross profit",p.gross,"tot"),row("Other income",p.otherInc),...Object.entries(p.exp).sort((a,b)=>b[1]-a[1]).map(([k,v])=>row("Expense · "+k,-v)),row("Total expenses",-p.tExp,"tot"),row("Net profit",p.net,"tot")]))+
+    `<div class="note">Expenses are payments made (not for raw material) plus Other entries. Raw material payments settle supplier bills and are not expenses. Opening and closing stock use today's stock rates and purchase rates. Management figures, not for tax filing.</div>`;
+  }
+});
 function renderModal(){
   const L=$("layer"),M=S.modal;if(!M){L.innerHTML="";return;}
   if(M.q){L.innerHTML=quoteModal(M);return;}
   if(M.report){L.innerHTML=`<div class="wrap" data-a="closebg"><div class="modal wide" data-stop="1" role="dialog" aria-modal="true" aria-label="Weekly report"><h2>Monday report</h2>${weeklyHTML()}<div class="actions"><button class="btn pri" data-a="close">Close</button></div></div></div>`;return;}
   if(isMultiProd()){L.innerHTML=`<div class="wrap" data-a="closebg"><form class="modal" id="recForm" data-stop="1" role="dialog" aria-modal="true" aria-label="Add production"><h2>Add production</h2>${prodFormHTML()}<div class="calc" id="calc"></div><div class="err" id="ferr" role="alert"></div><div class="actions"><button class="btn pri">Save all items</button><button type="button" class="btn" data-a="close">Cancel</button></div></form></div>`;liveCalc();const fi=L.querySelector("select,input");if(fi)fi.focus();return;}
   const r=M.id?Api.rows(M.t).find(x=>x.id===M.id)||{}:{};
-  const ctl=f=>{const v=f.k==="rate_t"?(M.id&&baseQty(r)>0&&Number(r.amount)?Math.round(Number(r.amount)/baseQty(r)*100)/100:""):r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
+  const ctl=f=>{const v=M.pre&&!M.id&&M.pre[f.k]!=null?M.pre[f.k]:f.k==="rate_t"?(M.id&&baseQty(r)>0&&Number(r.amount)?Math.round(Number(r.amount)/baseQty(r)*100)/100:""):r[f.k]!=null?r[f.k]:(f.def!=null&&!M.id?f.def:f.t==="date"&&!f.nodef&&!M.id?today():""),id="f-"+f.k;
     if(f.t==="file"){const cur=r.invoice_name;return `<input id="${id}" type="file" accept="application/pdf,image/*">${cur?`<div class="sub">Saved: ${esc(cur)} <button type="button" class="btn sm" data-a="viewbill" data-p="${esc(r.invoice_path)}">View</button> (choosing a new file replaces it)</div>`:""}`;}
     if(["contact","phone"].includes(f.k)&&!f.o&&!f.dl)return `<input id="${id}" type="text" inputmode="tel" value="${esc(v)}" autocomplete="off" data-phone="1">${contactBtn(id)}`;
     if(f.o&&!NO_OTHERS.includes(f.k)){const known=f.o.some(o=>String(o)===String(v)),oth=v!==""&&!known,isCust=f.k==="customer"&&["collections","dispatch","party_entries"].includes(M.t)&&!M.id;
@@ -914,7 +1050,7 @@ async function saveForm(){
     if(newCust)await Api.save("customers",newCust);
     if(M.t==="collections"){if(!rec.received_by||rec.received_by==="Akolite"){rec.received_by=null;if(!M.id)delete rec.received_by;}}
     await Api.save(M.t,rec);
-    if(M.t==="collections"&&!M.id&&rec.received_by){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,category:WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type "+(WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other")+". "+friendly(e));return;}}
+    if(M.t==="collections"&&!M.id&&rec.received_by){try{await Api.save("payments",{date:rec.date,payee:rec.received_by,mode:isCashMode(rec.mode)?"Cash":"Bank",category:WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other",amount:rec.amount});}catch(e){S.modal=null;renderModal();render();alert("The collection was saved, but the wages payment to "+rec.received_by+" was not. Add it under Payment made: ₹"+rec.amount+", Type "+(WAGE_TEAMS.includes(rec.received_by)?"Wages":"Other")+". "+friendly(e));return;}}
     S.modal=null;renderModal();render();
   }catch(e){$("ferr").textContent=friendly(e);btn.disabled=false;btn.textContent="Save";}
 }
@@ -945,6 +1081,13 @@ document.addEventListener("click",e=>{
   else if(a==="factory"){S.factory=el.dataset.v;render();}
   else if(a==="logout"){signOut();}
   else if(a==="backup"){downloadBackup();}
+  else if(a==="addacct"){S.modal={t:"acct_entries",pre:{kind:el.dataset.k,date:today(),...(el.dataset.k==="Transfer"?{head:"Cash to Bank"}:{}),...(el.dataset.k==="Opening balance"?{date:acctStart()}:{})}};renderModal();}
+  else if(a==="cbacc"){S.cbAcc=el.dataset.v;render();}
+  else if(a==="saveacctstart"){const d=$("acct-start").value;if(!d)return;Api.save("acct_entries",{date:d,kind:"Books start",amount:0,head:"Books start"}).then(()=>{S.banner="Books start date saved.";render();}).catch(e=>alert(friendly(e)));}
+  else if(a==="bsdownload"){const d=S.bsDate||today(),b=balanceSheet(d);acctCSV("Balance-sheet-"+d,[[COMPANY.name],["Balance sheet as on "+d],[],["Assets",""],...b.assets.map(x=>[x[0],Math.round(x[1])]),["Total assets",Math.round(b.tA)],[],["Liabilities and capital",""],...b.liab.map(x=>[x[0],Math.round(x[1])]),["Capital",Math.round(b.capital)],["Reserves and surplus (balancing figure)",Math.round(b.reserves)],["Total liabilities and capital",Math.round(b.tL+b.capital+b.reserves)]]);}
+  else if(a==="bspdf"){const d=S.bsDate||today();saveStatementPDF("Balance-sheet-"+d,"Balance sheet","As on "+d+" · management statement, separate from Tally",bsLines(balanceSheet(d)));}
+  else if(a==="pldownload"){const f=S.plFrom||acctStart(),t=S.plTo||today(),p=profitLoss(f,t);acctCSV("Profit-and-loss-"+f+"-to-"+t,[[COMPANY.name],["Profit and loss "+f+" to "+t],[],["Sales",Math.round(p.sales)],["Opening stock",Math.round(p.open.total)],["Purchases of raw material",Math.round(p.purchases)],["Closing stock",Math.round(-p.close.total)],["Cost of goods sold",Math.round(p.cogs)],["Gross profit",Math.round(p.gross)],["Other income",Math.round(p.otherInc)],...Object.entries(p.exp).map(([k,v])=>["Expense - "+k,Math.round(-v)]),["Total expenses",Math.round(-p.tExp)],["Net profit",Math.round(p.net)]]);}
+  else if(a==="plpdf"){const f=S.plFrom||acctStart(),t=S.plTo||today();saveStatementPDF("Profit-and-loss-"+f+"-to-"+t,"Profit and loss",f+" to "+t+" · management statement, separate from Tally",plLines(profitLoss(f,t)));}
   else if(a==="viewbill"){const w=window.open("","_blank");sb.storage.from("documents").createSignedUrl(el.dataset.p,300).then(({data,error})=>{if(error)throw error;if(w)w.location.href=data.signedUrl;else location.href=data.signedUrl;}).catch(e=>{if(w)w.close();alert("The invoice copy could not be opened. "+friendly(e));});}
   else if(a==="addsale"){S.modal={t:"party_entries"};renderModal();}
   else if(a==="pickcontact"){navigator.contacts.select(["tel"],{multiple:false}).then(r=>{const n=r&&r[0]&&r[0].tel&&r[0].tel[0];if(n){const d=String(n).replace(/[^\d+]/g,""),i=$(el.dataset.for);if(i)i.value=/contact/.test(el.dataset.for)&&i.value.trim()?i.value.trim()+" "+d:d;}}).catch(()=>{});}
@@ -970,7 +1113,8 @@ document.addEventListener("click",e=>{
   else if(a==="del"){el.outerHTML='<button type="button" class="btn dang" data-a="delyes">Yes, delete it</button>';}
   else if(a==="delyes"){Api.remove(S.modal.t,S.modal.id).then(()=>{S.modal=null;renderModal();}).catch(err=>{$("ferr").textContent=friendly(err);});}
 });
-document.addEventListener("change",e=>{const vi=e.target.dataset&&e.target.dataset.vcf;if(vi){const f=e.target.files&&e.target.files[0];if(f)f.text().then(t=>{const tel=[...t.matchAll(/^(?:item\d+\.)?TEL[^:\n]*:(.+)$/gim)].map(m=>m[1].replace(/[^\d+]/g,"")).filter(x=>x.length>=7),i=$(vi);if(i&&tel.length)i.value=/contact/.test(vi)&&i.value.trim()?i.value.trim()+" "+tel[0]:tel[0];else alert("No phone number was found in that contact card.");e.target.value="";});}
+document.addEventListener("change",e=>{const dm={bsdate:"bsDate",plfrom:"plFrom",plto:"plTo",cbdate:"cbDate",svdate:"stockValDate"}[e.target.id];if(dm&&e.target.value){S[dm]=e.target.value;render();}
+const vi=e.target.dataset&&e.target.dataset.vcf;if(vi){const f=e.target.files&&e.target.files[0];if(f)f.text().then(t=>{const tel=[...t.matchAll(/^(?:item\d+\.)?TEL[^:\n]*:(.+)$/gim)].map(m=>m[1].replace(/[^\d+]/g,"")).filter(x=>x.length>=7),i=$(vi);if(i&&tel.length)i.value=/contact/.test(vi)&&i.value.trim()?i.value.trim()+" "+tel[0]:tel[0];else alert("No phone number was found in that contact card.");e.target.value="";});}
 if(e.target.id==="salesMonth"&&e.target.value){S.salesMonth=e.target.value;render();}if(e.target.id==="f-item")timberCalc();if(e.target.dataset&&e.target.dataset.oth){const o=e.target.value==="__other__",i=$(e.target.id+"-o"),x=$(e.target.id+"-x");if(i){i.hidden=!o;if(o)i.focus();}if(x)x.hidden=!o;}});
 document.addEventListener("change",e=>{const g=e.target.closest&&e.target.matches("[data-k=grade]")&&e.target.closest(".prow");if(!g)return;const oth=e.target.value==="__other__",gi=g.querySelector("[data-k=grade_o]");if(gi){gi.hidden=!oth;if(oth)gi.focus();}const pal=isPallet(e.target.value),sz=g.querySelector("[data-k=size]");g.querySelector(".szl").textContent=pal?"Size in mm (900x550) *":"Size in inches (96x48) *";sz.placeholder=pal?"900x550":"96x48";liveCalc();});
 const rateLabel=item=>{const u=({tonnes:"tonne",bundles:"bundle"})[rmUnit(item)]||rmUnit(item)||"unit";return "Rate per "+(/veneer/i.test(item)?u+" per mm":u)+" (₹)";};
@@ -996,6 +1140,8 @@ document.addEventListener("submit",async e=>{
     if(error){S.err=/fetch|network/i.test(error.message)?"Couldn't reach the server. Check the internet.":"That name and PIN don't match. Try again, or ask an admin.";render();return;}
     try{if(await startSession(data.user.id)){S.err="";render();mondayReport();}else render();}catch(err){S.err="Signed in, but your data couldn't load. Try again.";S.user=null;render();}
   }
+  if(e.target.id==="stockRateForm"){const d=$("rate-asof").value,btn=e.target.querySelector("button");btn.disabled=true;btn.textContent="Saving…";
+    (async()=>{try{for(const i of e.target.querySelectorAll("input[data-p]")){const v=i.value.trim();if(v==="")continue;const cur=stockRates(d)[i.dataset.p];if(cur!=null&&Number(v)===cur)continue;await Api.save("acct_entries",{date:d,kind:"Stock rate",head:i.dataset.p,amount:Number(v)});}S.banner="Stock rates saved.";render();}catch(err){alert(friendly(err));btn.disabled=false;btn.textContent="Save stock rates";}})();return;}
   if(e.target.id==="recForm")saveForm();
   if(e.target.id==="quoteForm"){const q=readQuote();if(!q.party||!q.items.length){$("ferr").textContent="Add the party and at least one item.";return;}
     const rec={...q};delete rec.by;["entered_by","entered_by_name","entered_at","edited_by_name"].forEach(k=>delete rec[k]);
